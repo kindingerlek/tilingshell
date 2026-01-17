@@ -269,6 +269,19 @@ export default class TilingShellExtension extends Extension {
             );
             this._signals.connect(
                 this._keybindings,
+                'swap-window',
+                (
+                    kb: KeyBindings,
+                    dp: Meta.Display,
+                    dir: KeyBindingsDirection,
+                ) => {
+                    const focus_window = dp.focus_window as ExtendedWindow;
+                    if (!focus_window) return;
+                    TilingShellWindowManager.get().swap(focus_window, dir);
+                },
+            );
+            this._signals.connect(
+                this._keybindings,
                 'span-window-all-tiles',
                 (kb: KeyBindings, dp: Meta.Display) => {
                     const window = dp.focus_window;

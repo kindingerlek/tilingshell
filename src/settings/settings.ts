@@ -122,6 +122,10 @@ export default class Settings {
     static SETTING_MOVE_WINDOW_LEFT = 'move-window-left';
     static SETTING_MOVE_WINDOW_UP = 'move-window-up';
     static SETTING_MOVE_WINDOW_DOWN = 'move-window-down';
+    static SETTING_SWAP_WINDOW_RIGHT = 'swap-window-right';
+    static SETTING_SWAP_WINDOW_LEFT = 'swap-window-left';
+    static SETTING_SWAP_WINDOW_UP = 'swap-window-up';
+    static SETTING_SWAP_WINDOW_DOWN = 'swap-window-down';
     static SETTING_SPAN_WINDOW_RIGHT = 'span-window-right';
     static SETTING_SPAN_WINDOW_LEFT = 'span-window-left';
     static SETTING_SPAN_WINDOW_UP = 'span-window-up';

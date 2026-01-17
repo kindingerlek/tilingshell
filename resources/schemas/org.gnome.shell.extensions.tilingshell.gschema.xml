@@ -215,6 +215,22 @@
 			<default><![CDATA[['<Super>Down']]]></default>
 			<summary>Move focused window to the tile below</summary>
 		</key>
+        <key type="as" name="swap-window-right">
+            <default><![CDATA[['']]]></default>
+            <summary>Swap the focused window with the window to its right</summary>
+        </key>
+        <key type="as" name="swap-window-left">
+            <default><![CDATA[['']]]></default>
+            <summary>Swap the focused window with the window to its left</summary>
+        </key>
+        <key type="as" name="swap-window-up">
+            <default><![CDATA[['']]]></default>
+            <summary>Swap the focused window with the window above</summary>
+        </key>
+        <key type="as" name="swap-window-down">
+            <default><![CDATA[['']]]></default>
+            <summary>Swap the focused window with the window below</summary>
+        </key>
 		<key type="as" name="span-window-right">
 			<default><![CDATA[['']]]></default>
 			<summary>Span focused window to the tile to its right</summary>
