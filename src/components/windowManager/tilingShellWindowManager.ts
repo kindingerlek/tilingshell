@@ -119,8 +119,6 @@ export default class TilingShellWindowManager extends GObject.Object {
 
     public swap(window: ExtendedWindow, direction: KeyBindingsDirection): void {
         const windowTile = window.assignedTile;
-        if (!windowTile) return;
-
         const monitorIndex = window.get_monitor();
         const currentWs = window.get_workspace();
         const workArea = Main.layoutManager.getWorkAreaForMonitor(monitorIndex);
@@ -136,6 +134,23 @@ export default class TilingShellWindowManager extends GObject.Object {
                     extWin.get_monitor() === monitorIndex
                 );
             });
+
+        // Handle untiled windows - find the nearest tile in the direction and move there
+        if (!windowTile) {
+            const destinationTile = this._findNearestTileInDirection(
+                window.get_frame_rect(),
+                direction,
+                monitorIndex,
+                currentWs.index(),
+            );
+            if (destinationTile) {
+                const targetRect = this._getTileRect(destinationTile, workArea);
+                window.assignedTile = new Tile({ ...destinationTile });
+                window.originalSize = window.get_frame_rect().copy();
+                this._easeWindowRect(window, targetRect, monitorIndex);
+            }
+            return;
+        }
 
         // Find the best window to swap with in the given direction
         const targetWindow = this._findSwapTarget(
@@ -175,20 +190,20 @@ export default class TilingShellWindowManager extends GObject.Object {
             window.assignedTile = new Tile({ ...emptyTile });
             this._easeWindowRect(window, targetRect, monitorIndex);
         } else if (targetWindow?.assignedTile) {
-            // Swap with the window - use actual window frame rects for accurate positioning
+            // Swap with the window - resize both to fit their destination tiles
             const targetTile = targetWindow.assignedTile;
             
-            // Get the current frame rects of both windows
-            const windowRect = window.get_frame_rect();
-            const targetRect = targetWindow.get_frame_rect();
+            // Get the proper rects for both tiles
+            const windowDestRect = this._getTileRect(targetTile, workArea);
+            const targetDestRect = this._getTileRect(windowTile, workArea);
 
             // Swap assigned tiles
             window.assignedTile = new Tile({ ...targetTile });
             targetWindow.assignedTile = new Tile({ ...windowTile });
 
-            // Animate windows to their new positions (swap their current positions)
-            this._easeWindowRect(window, targetRect, monitorIndex);
-            this._easeWindowRect(targetWindow, windowRect, monitorIndex);
+            // Animate windows to their destination tiles (properly sized and positioned)
+            this._easeWindowRect(window, windowDestRect, monitorIndex);
+            this._easeWindowRect(targetWindow, targetDestRect, monitorIndex);
         }
     }
 
@@ -212,6 +227,70 @@ export default class TilingShellWindowManager extends GObject.Object {
             default:
                 return Infinity;
         }
+    }
+
+    /**
+     * Find the nearest tile in the given direction from a window's frame rect.
+     * This is used for untiled windows to find a tile to move to.
+     * Similar to how tilingLayout.findNearestTileDirection works for the move behavior.
+     */
+    private _findNearestTileInDirection(
+        windowRect: Mtk.Rectangle,
+        direction: KeyBindingsDirection,
+        monitorIndex: number,
+        workspaceIndex: number,
+    ): Tile | undefined {
+        const layout = GlobalState.get().getSelectedLayoutOfMonitor(
+            monitorIndex,
+            workspaceIndex,
+        );
+        const workArea = Main.layoutManager.getWorkAreaForMonitor(monitorIndex);
+
+        // Calculate search point offset in the direction (similar to tilingLayout.findNearestTileDirection)
+        const enlargeFactor = 64;
+        const searchPoint = {
+            x: windowRect.x + windowRect.width / 2,
+            y: windowRect.y + windowRect.height / 2,
+        };
+
+        switch (direction) {
+            case KeyBindingsDirection.RIGHT:
+                searchPoint.x = windowRect.x + windowRect.width + enlargeFactor;
+                break;
+            case KeyBindingsDirection.LEFT:
+                searchPoint.x = windowRect.x - enlargeFactor;
+                break;
+            case KeyBindingsDirection.DOWN:
+                searchPoint.y = windowRect.y + windowRect.height + enlargeFactor;
+                break;
+            case KeyBindingsDirection.UP:
+                searchPoint.y = windowRect.y - enlargeFactor;
+                break;
+        }
+
+        // Clamp search point to work area
+        searchPoint.x = Math.max(workArea.x, Math.min(searchPoint.x, workArea.x + workArea.width));
+        searchPoint.y = Math.max(workArea.y, Math.min(searchPoint.y, workArea.y + workArea.height));
+
+        // Convert search point to normalized coordinates (0-1 range)
+        const normalizedPoint = {
+            x: (searchPoint.x - workArea.x) / workArea.width,
+            y: (searchPoint.y - workArea.y) / workArea.height,
+        };
+
+        // Find the tile that contains this point
+        for (const tile of layout.tiles) {
+            if (
+                normalizedPoint.x >= tile.x &&
+                normalizedPoint.x <= tile.x + tile.width &&
+                normalizedPoint.y >= tile.y &&
+                normalizedPoint.y <= tile.y + tile.height
+            ) {
+                return tile;
+            }
+        }
+
+        return undefined;
     }
 
     /**

@@ -347,6 +347,11 @@ export default class TilingShellExtension extends Extension {
             );
             this._signals.connect(
                 this._keybindings,
+                'bring-focus',
+                this._onKeyboardBringFocus.bind(this),
+            );
+            this._signals.connect(
+                this._keybindings,
                 'cycle-layouts',
                 (
                     _: KeyBindings,
@@ -755,6 +760,117 @@ export default class TilingShellExtension extends Extension {
         if (!monitorTilingManager) return;
 
         monitorTilingManager.onUntileWindow(focus_window, true);
+    }
+
+    private _onKeyboardBringFocus(kb: KeyBindings, display: Meta.Display) {
+        const focus_window = display.get_focus_window();
+        if (
+            !focus_window ||
+            !focus_window.has_focus() ||
+            focus_window.windowType !== Meta.WindowType.NORMAL ||
+            (focus_window.get_wm_class() &&
+                focus_window.get_wm_class() === 'gjs')
+        )
+            return;
+
+        const monitorIndex = focus_window.get_monitor();
+        const currentWs = focus_window.get_workspace();
+        const workArea = Main.layoutManager.getWorkAreaForMonitor(monitorIndex);
+
+        // Get all tiled windows on the same monitor and workspace
+        const tiledWindows = getWindows(currentWs)
+            .filter((w): w is ExtendedWindow => {
+                const extWin = w as ExtendedWindow;
+                return (
+                    extWin !== focus_window &&
+                    extWin.assignedTile !== undefined &&
+                    !extWin.minimized &&
+                    extWin.get_monitor() === monitorIndex
+                );
+            });
+
+        if (tiledWindows.length === 0) return;
+
+        // Find the biggest tile/window considering spanned tiles
+        let biggestWindow: ExtendedWindow | undefined;
+        let biggestArea = 0;
+
+        tiledWindows.forEach((win) => {
+            const tile = win.assignedTile;
+            if (!tile) return;
+
+            const area = tile.width * tile.height;
+            if (area > biggestArea) {
+                biggestArea = area;
+                biggestWindow = win;
+            }
+        });
+
+        // If all windows have the same size, pick the most centric to monitor
+        const sameSize = tiledWindows.every((win) => {
+            const tile = win.assignedTile;
+            if (!tile) return false;
+            const area = tile.width * tile.height;
+            return Math.abs(area - biggestArea) < 0.001;
+        });
+
+        if (sameSize) {
+            // Find the most centric window to the monitor
+            const monitorCenter = {
+                x: 0.5,
+                y: 0.5,
+            };
+
+            let minDistance = Infinity;
+            tiledWindows.forEach((win) => {
+                const tile = win.assignedTile;
+                if (!tile) return;
+
+                const tileCenter = {
+                    x: tile.x + tile.width / 2,
+                    y: tile.y + tile.height / 2,
+                };
+
+                const distance = squaredEuclideanDistance(monitorCenter, tileCenter);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    biggestWindow = win;
+                }
+            });
+        }
+
+        if (!biggestWindow || !biggestWindow.assignedTile) return;
+
+        // Swap the focused window with the biggest window
+        TilingShellWindowManager.get().swap(
+            focus_window as ExtendedWindow,
+            KeyBindingsDirection.NODIRECTION,
+        );
+        
+        // If swap didn't work (untiled window), move to the biggest tile
+        const focusTile = (focus_window as ExtendedWindow).assignedTile;
+        if (!focusTile) {
+            const monitorTilingManager = this._tilingManagers[monitorIndex];
+            if (!monitorTilingManager) return;
+
+            monitorTilingManager.onTileFromWindowMenu(
+                biggestWindow.assignedTile,
+                focus_window,
+            );
+        } else {
+            // Perform the actual swap by exchanging tiles
+            const targetTile = biggestWindow.assignedTile;
+            const focusRect = TilingShellWindowManager.get()['_getTileRect'](targetTile, workArea);
+            const targetRect = TilingShellWindowManager.get()['_getTileRect'](focusTile, workArea);
+
+            // Update assigned tiles
+            (focus_window as ExtendedWindow).assignedTile = new Tile({ ...targetTile });
+            biggestWindow.assignedTile = new Tile({ ...focusTile });
+
+            // Animate windows to new positions
+            TilingShellWindowManager.get()['_easeWindowRect'](focus_window, focusRect, monitorIndex);
+            TilingShellWindowManager.get()['_easeWindowRect'](biggestWindow, targetRect, monitorIndex);
+        }
     }
 
     private _isFractionalScalingEnabled(

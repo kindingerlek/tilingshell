@@ -744,6 +744,15 @@ export default class TilingShellExtensionPreferences extends ExtensionPreference
                 false,
             ],
             [
+                Settings.SETTING_BRING_FOCUS,
+                _('Bring focus'),
+                _(
+                    'Move the focused window to the biggest tile in the workspace',
+                ),
+                false,
+                false,
+            ],
+            [
                 Settings.SETTING_CYCLE_LAYOUTS,
                 _('Cycle layouts'),
                 _('Cycle through available workspace layouts'),
