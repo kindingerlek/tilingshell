@@ -50,7 +50,7 @@ import OverriddenAltTab from './components/altTab/overriddenAltTab';
 import { LayoutSwitcherPopup } from './components/layoutSwitcher/layoutSwitcher';
 import { unmaximizeWindow } from './utils/gnomesupport';
 import * as Config from 'resource:///org/gnome/shell/misc/config.js';
-import { CustomRulesManager } from '@components/customRulesManager';
+import { CustomRulesManager } from './components/customRulesManager';
 
 const debug = logger('extension');
 
@@ -275,9 +275,7 @@ export default class TilingShellExtension extends Extension {
                     dp: Meta.Display,
                     dir: KeyBindingsDirection,
                 ) => {
-                    const focus_window = dp.focus_window as ExtendedWindow;
-                    if (!focus_window) return;
-                    TilingShellWindowManager.get().swap(focus_window, dir);
+                    this._onKeyboardSwapWindow(dp, dir);
                 },
             );
             this._signals.connect(
@@ -615,6 +613,151 @@ export default class TilingShellExtension extends Extension {
         );
     }
 
+    private _onKeyboardSwapWindow(
+        display: Meta.Display,
+        direction: KeyBindingsDirection,
+    ) {
+        const focus_window = display.get_focus_window();
+        if (
+            !focus_window ||
+            !focus_window.has_focus() ||
+            (focus_window.get_wm_class() &&
+                focus_window.get_wm_class() === 'gjs') ||
+            focus_window.is_fullscreen()
+        )
+            return;
+
+        const extWin = focus_window as ExtendedWindow;
+        const monitorIndex = focus_window.get_monitor();
+        const currentWs = focus_window.get_workspace();
+
+        // Get all tiled windows on the same monitor and workspace
+        const tiledWindows = getWindows(currentWs).filter(
+            (w): w is ExtendedWindow => {
+                const win = w as ExtendedWindow;
+                return (
+                    win !== focus_window &&
+                    win.assignedTile !== undefined &&
+                    !win.minimized &&
+                    win.get_monitor() === monitorIndex
+                );
+            },
+        );
+
+        // If the focused window is not tiled, use move behavior instead
+        if (!extWin.assignedTile) {
+            this._onKeyboardMoveWin(display, direction, false);
+            return;
+        }
+
+        // Find the best swap target in the direction
+        const targetWindow = this._findSwapTarget(
+            extWin,
+            tiledWindows,
+            direction,
+        );
+
+        if (!targetWindow?.assignedTile) return;
+
+        // Perform the swap
+        const tilingManager = this._tilingManagers[monitorIndex];
+        if (!tilingManager) return;
+
+        const focusTile = extWin.assignedTile;
+        const targetTile = targetWindow.assignedTile;
+
+        // Exchange assigned tiles
+        extWin.assignedTile = new Tile({ ...targetTile });
+        targetWindow.assignedTile = new Tile({ ...focusTile });
+
+        // Move both windows to their new tiles
+        tilingManager.onTileFromWindowMenu(targetTile, focus_window);
+        tilingManager.onTileFromWindowMenu(focusTile, targetWindow);
+    }
+
+    /**
+     * Find the best window to swap with based on direction.
+     * Filters windows in the given direction with overlapping range,
+     * then picks the closest one.
+     */
+    private _findSwapTarget(
+        focusWindow: ExtendedWindow,
+        candidates: ExtendedWindow[],
+        direction: KeyBindingsDirection,
+    ): ExtendedWindow | undefined {
+        const currentTile = focusWindow.assignedTile;
+        if (!currentTile) return undefined;
+
+        const epsilon = 0.001;
+
+        // Filter candidates in the given direction with overlapping range
+        const validCandidates = candidates.filter((win) => {
+            const tile = win.assignedTile;
+            if (!tile) return false;
+
+            const hasVerticalOverlap =
+                !(currentTile.y + currentTile.height <= tile.y + epsilon ||
+                  tile.y + tile.height <= currentTile.y + epsilon);
+            const hasHorizontalOverlap =
+                !(currentTile.x + currentTile.width <= tile.x + epsilon ||
+                  tile.x + tile.width <= currentTile.x + epsilon);
+
+            switch (direction) {
+                case KeyBindingsDirection.LEFT:
+                    return tile.x + tile.width <= currentTile.x + epsilon && hasVerticalOverlap;
+                case KeyBindingsDirection.RIGHT:
+                    return tile.x >= currentTile.x + currentTile.width - epsilon && hasVerticalOverlap;
+                case KeyBindingsDirection.UP:
+                    return tile.y + tile.height <= currentTile.y + epsilon && hasHorizontalOverlap;
+                case KeyBindingsDirection.DOWN:
+                    return tile.y >= currentTile.y + currentTile.height - epsilon && hasHorizontalOverlap;
+                default:
+                    return false;
+            }
+        });
+
+        if (validCandidates.length === 0) return undefined;
+
+        // Sort by distance (closest first)
+        const currentCenter = {
+            x: currentTile.x + currentTile.width / 2,
+            y: currentTile.y + currentTile.height / 2,
+        };
+
+        validCandidates.sort((a, b) => {
+            const tileA = a.assignedTile!;
+            const tileB = b.assignedTile!;
+            const centerA = { x: tileA.x + tileA.width / 2, y: tileA.y + tileA.height / 2 };
+            const centerB = { x: tileB.x + tileB.width / 2, y: tileB.y + tileB.height / 2 };
+
+            let distA: number, distB: number;
+            switch (direction) {
+                case KeyBindingsDirection.LEFT:
+                    distA = currentCenter.x - centerA.x;
+                    distB = currentCenter.x - centerB.x;
+                    break;
+                case KeyBindingsDirection.RIGHT:
+                    distA = centerA.x - currentCenter.x;
+                    distB = centerB.x - currentCenter.x;
+                    break;
+                case KeyBindingsDirection.UP:
+                    distA = currentCenter.y - centerA.y;
+                    distB = currentCenter.y - centerB.y;
+                    break;
+                case KeyBindingsDirection.DOWN:
+                    distA = centerA.y - currentCenter.y;
+                    distB = centerB.y - currentCenter.y;
+                    break;
+                default:
+                    return 0;
+            }
+
+            return distA - distB;
+        });
+
+        return validCandidates[0];
+    }
+
     private _onKeyboardFocusWinDirection(
         display: Meta.Display,
         direction: KeyBindingsDirection | FocusSwitchDirection,
@@ -775,7 +918,6 @@ export default class TilingShellExtension extends Extension {
 
         const monitorIndex = focus_window.get_monitor();
         const currentWs = focus_window.get_workspace();
-        const workArea = Main.layoutManager.getWorkAreaForMonitor(monitorIndex);
 
         // Get all tiled windows on the same monitor and workspace
         const tiledWindows = getWindows(currentWs)
@@ -841,36 +983,26 @@ export default class TilingShellExtension extends Extension {
 
         if (!biggestWindow || !biggestWindow.assignedTile) return;
 
-        // Swap the focused window with the biggest window
-        TilingShellWindowManager.get().swap(
-            focus_window as ExtendedWindow,
-            KeyBindingsDirection.NODIRECTION,
-        );
+        const tilingManager = this._tilingManagers[monitorIndex];
+        if (!tilingManager) return;
+
+        const extWin = focus_window as ExtendedWindow;
+        const targetTile = biggestWindow.assignedTile;
+        const focusTile = extWin?.assignedTile;
         
-        // If swap didn't work (untiled window), move to the biggest tile
-        const focusTile = (focus_window as ExtendedWindow).assignedTile;
+        // If focused windows is not tiled, move untiled window to the biggest tile
         if (!focusTile) {
-            const monitorTilingManager = this._tilingManagers[monitorIndex];
-            if (!monitorTilingManager) return;
-
-            monitorTilingManager.onTileFromWindowMenu(
-                biggestWindow.assignedTile,
-                focus_window,
-            );
-        } else {
-            // Perform the actual swap by exchanging tiles
-            const targetTile = biggestWindow.assignedTile;
-            const focusRect = TilingShellWindowManager.get()['_getTileRect'](targetTile, workArea);
-            const targetRect = TilingShellWindowManager.get()['_getTileRect'](focusTile, workArea);
-
-            // Update assigned tiles
-            (focus_window as ExtendedWindow).assignedTile = new Tile({ ...targetTile });
-            biggestWindow.assignedTile = new Tile({ ...focusTile });
-
-            // Animate windows to new positions
-            TilingShellWindowManager.get()['_easeWindowRect'](focus_window, focusRect, monitorIndex);
-            TilingShellWindowManager.get()['_easeWindowRect'](biggestWindow, targetRect, monitorIndex);
+            tilingManager.onTileFromWindowMenu(targetTile, focus_window);
+            return
         }
+
+        // Exchange assigned tiles
+        extWin.assignedTile = new Tile({ ...targetTile });
+        biggestWindow.assignedTile = new Tile({ ...focusTile });
+
+        // Move both windows to their new tiles
+        tilingManager.onTileFromWindowMenu(targetTile, focus_window);
+        tilingManager.onTileFromWindowMenu(focusTile, biggestWindow);        
     }
 
     private _isFractionalScalingEnabled(
