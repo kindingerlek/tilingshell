@@ -28,6 +28,9 @@ export default class KeyBindings extends GObject.Object {
             'move-window': {
                 param_types: [Meta.Display.$gtype, GObject.TYPE_INT], // Meta.Display, KeyBindingsDirection
             },
+            'swap-window': {
+                param_types: [Meta.Display.$gtype, GObject.TYPE_INT], // Meta.Display, KeyBindingsDirection
+            },
             'span-window': {
                 param_types: [Meta.Display.$gtype, GObject.TYPE_INT], // Meta.Display, KeyBindingsDirection
             },
@@ -47,6 +50,9 @@ export default class KeyBindings extends GObject.Object {
                 param_types: [Meta.Display.$gtype, GObject.TYPE_INT], // Meta.Display, FocusSwitchDirection
             },
             'highlight-current-window': {
+                param_types: [Meta.Display.$gtype], // Meta.Display
+            },
+            'bring-focus': {
                 param_types: [Meta.Display.$gtype], // Meta.Display
             },
             'cycle-layouts': {
@@ -86,6 +92,46 @@ export default class KeyBindings extends GObject.Object {
     private _applyKeybindings(extensionSettings: Gio.Settings) {
         // Disable native keybindings for Super + Left/Right
         this._overrideNatives(extensionSettings);
+
+        Main.wm.addKeybinding(
+            Settings.SETTING_SWAP_WINDOW_RIGHT,
+            extensionSettings,
+            Meta.KeyBindingFlags.NONE,
+            Shell.ActionMode.NORMAL,
+            (display: Meta.Display) => {
+                this.emit('swap-window', display, KeyBindingsDirection.RIGHT);
+            },
+        );
+
+        Main.wm.addKeybinding(
+            Settings.SETTING_SWAP_WINDOW_LEFT,
+            extensionSettings,
+            Meta.KeyBindingFlags.NONE,
+            Shell.ActionMode.NORMAL,
+            (display: Meta.Display) => {
+                this.emit('swap-window', display, KeyBindingsDirection.LEFT);
+            },
+        );
+
+        Main.wm.addKeybinding(
+            Settings.SETTING_SWAP_WINDOW_UP,
+            extensionSettings,
+            Meta.KeyBindingFlags.NONE,
+            Shell.ActionMode.NORMAL,
+            (display: Meta.Display) => {
+                this.emit('swap-window', display, KeyBindingsDirection.UP);
+            },
+        );
+
+        Main.wm.addKeybinding(
+            Settings.SETTING_SWAP_WINDOW_DOWN,
+            extensionSettings,
+            Meta.KeyBindingFlags.NONE,
+            Shell.ActionMode.NORMAL,
+            (display: Meta.Display) => {
+                this.emit('swap-window', display, KeyBindingsDirection.DOWN);
+            },
+        );
 
         Main.wm.addKeybinding(
             Settings.SETTING_SPAN_WINDOW_RIGHT,
@@ -241,6 +287,16 @@ export default class KeyBindings extends GObject.Object {
             },
         );
 
+        Main.wm.addKeybinding(
+            Settings.SETTING_BRING_FOCUS,
+            extensionSettings,
+            Meta.KeyBindingFlags.NONE,
+            Shell.ActionMode.NORMAL,
+            (display: Meta.Display) => {
+                this.emit('bring-focus', display);
+            },
+        );
+
         const action = Main.wm.addKeybinding(
             Settings.SETTING_CYCLE_LAYOUTS,
             extensionSettings,
@@ -252,8 +308,8 @@ export default class KeyBindings extends GObject.Object {
                 event: Clutter.Event,
                 binding: Meta.KeyBinding,
             ) => {
-                const mask = event.get_mask
-                    ? event.get_mask()
+                const mask = event.get_state
+                    ? event.get_state()
                     : binding.get_mask();
                 this.emit('cycle-layouts', display, action, mask);
             },
@@ -340,6 +396,10 @@ export default class KeyBindings extends GObject.Object {
         Main.wm.removeKeybinding(Settings.SETTING_MOVE_WINDOW_LEFT);
         Main.wm.removeKeybinding(Settings.SETTING_MOVE_WINDOW_UP);
         Main.wm.removeKeybinding(Settings.SETTING_MOVE_WINDOW_DOWN);
+        Main.wm.removeKeybinding(Settings.SETTING_SWAP_WINDOW_RIGHT);
+        Main.wm.removeKeybinding(Settings.SETTING_SWAP_WINDOW_LEFT);
+        Main.wm.removeKeybinding(Settings.SETTING_SWAP_WINDOW_UP);
+        Main.wm.removeKeybinding(Settings.SETTING_SWAP_WINDOW_DOWN);
         Main.wm.removeKeybinding(Settings.SETTING_SPAN_WINDOW_RIGHT);
         Main.wm.removeKeybinding(Settings.SETTING_SPAN_WINDOW_LEFT);
         Main.wm.removeKeybinding(Settings.SETTING_SPAN_WINDOW_UP);
@@ -354,6 +414,7 @@ export default class KeyBindings extends GObject.Object {
         Main.wm.removeKeybinding(Settings.SETTING_FOCUS_WINDOW_NEXT);
         Main.wm.removeKeybinding(Settings.SETTING_FOCUS_WINDOW_PREV);
         Main.wm.removeKeybinding(Settings.SETTING_HIGHLIGHT_CURRENT_WINDOW);
+        Main.wm.removeKeybinding(Settings.SETTING_BRING_FOCUS);
         Main.wm.removeKeybinding(Settings.SETTING_CYCLE_LAYOUTS);
     }
 

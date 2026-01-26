@@ -122,6 +122,10 @@ export default class Settings {
     static SETTING_MOVE_WINDOW_LEFT = 'move-window-left';
     static SETTING_MOVE_WINDOW_UP = 'move-window-up';
     static SETTING_MOVE_WINDOW_DOWN = 'move-window-down';
+    static SETTING_SWAP_WINDOW_RIGHT = 'swap-window-right';
+    static SETTING_SWAP_WINDOW_LEFT = 'swap-window-left';
+    static SETTING_SWAP_WINDOW_UP = 'swap-window-up';
+    static SETTING_SWAP_WINDOW_DOWN = 'swap-window-down';
     static SETTING_SPAN_WINDOW_RIGHT = 'span-window-right';
     static SETTING_SPAN_WINDOW_LEFT = 'span-window-left';
     static SETTING_SPAN_WINDOW_UP = 'span-window-up';
@@ -136,6 +140,7 @@ export default class Settings {
     static SETTING_FOCUS_WINDOW_NEXT = 'focus-window-next';
     static SETTING_FOCUS_WINDOW_PREV = 'focus-window-prev';
     static SETTING_HIGHLIGHT_CURRENT_WINDOW = 'highlight-current-window';
+    static SETTING_BRING_FOCUS = 'bring-focus';
     static SETTING_CYCLE_LAYOUTS = 'cycle-layouts';
 
     static initialize(settings: Gio.Settings) {
