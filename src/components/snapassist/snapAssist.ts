@@ -1,20 +1,19 @@
-import { registerGObjectClass } from '@/utils/gjs';
-import { GObject, St, Clutter, Mtk, Meta, Gio } from '@gi.ext';
+import { registerGObjectClass } from '../../utils/gjs';
+import { GObject, St, Clutter, Mtk, Meta, Gio } from '../../gi/ext';
 import SnapAssistTile from './snapAssistTile';
 import SnapAssistLayout from './snapAssistLayout';
 import Layout from '../layout/Layout';
 import Tile from '../layout/Tile';
-import Settings from '@settings/settings';
-import GlobalState from '@utils/globalState';
-import SignalHandling from '@utils/signalHandling';
+import Settings from '../../settings/settings';
+import GlobalState from '../../utils/globalState';
+import SignalHandling from '../../utils/signalHandling';
 import {
     buildMarginOf,
     enableScalingFactorSupport,
     getMonitorScalingFactor,
     getScalingFactorOf,
-} from '@utils/ui';
-import { logger } from '@utils/logger';
-import { buildBlurEffect } from '@utils/gnomesupport';
+} from '../../utils/ui';
+import { buildBlurEffect } from '../../utils/gnomesupport';
 
 export const SNAP_ASSIST_SIGNAL = 'snap-assist';
 
@@ -23,11 +22,8 @@ const GAPS = 4;
 const SNAP_ASSIST_LAYOUT_WIDTH = 120;
 const SNAP_ASSIST_LAYOUT_HEIGHT = 68;
 
-const debug = logger('SnapAssist');
-
-@registerGObjectClass
 class SnapAssistContent extends St.BoxLayout {
-    static metaInfo: GObject.MetaInfo<unknown, unknown, unknown> = {
+    static { registerGObjectClass(this, {
         GTypeName: 'SnapAssistContent',
         Properties: {
             blur: GObject.ParamSpec.boolean(
@@ -56,7 +52,7 @@ class SnapAssistContent extends St.BoxLayout {
                 180,
             ),
         },
-    };
+    })};
 
     private readonly _container: St.Widget;
 
@@ -267,11 +263,11 @@ class SnapAssistContent extends St.BoxLayout {
 
     public onMovingWindow(
         window: Meta.Window,
-        ease: boolean = false,
         currPointerPos: { x: number; y: number },
+        ease: boolean = false,
     ) {
         const wasEnlarged = this._isEnlarged;
-        this.handleOpening(window, ease, currPointerPos);
+        this.handleOpening(window, currPointerPos, ease);
         if (!this._showing || !this._isEnlarged) {
             if (this._hoveredInfo) this._hoveredInfo[0].set_hover(false);
 
@@ -304,8 +300,8 @@ class SnapAssistContent extends St.BoxLayout {
 
     private handleOpening(
         window: Meta.Window,
-        ease: boolean = false,
         currPointerPos: { x: number; y: number },
+        ease: boolean = false,
     ) {
         if (!this._showing) {
             if (this.get_parent() === global.windowGroup) {
@@ -391,16 +387,15 @@ class SnapAssistContent extends St.BoxLayout {
     }
 }
 
-@registerGObjectClass
 export default class SnapAssist extends St.Widget {
-    static metaInfo: GObject.MetaInfo<unknown, unknown, unknown> = {
+    static { registerGObjectClass(this, {
         GTypeName: 'SnapAssist',
         Signals: {
             'snap-assist': {
                 param_types: [Tile.$gtype, String.$gtype], // tile, layout_id
             },
         },
-    };
+    })};
 
     private readonly _content: SnapAssistContent;
 
@@ -427,10 +422,10 @@ export default class SnapAssist extends St.Widget {
 
     public onMovingWindow(
         window: Meta.Window,
-        ease: boolean = false,
         currPointerPos: { x: number; y: number },
+        ease: boolean = false,
     ) {
-        this._content.onMovingWindow(window, ease, currPointerPos);
+        this._content.onMovingWindow(window, currPointerPos, ease);
     }
 
     public close(ease: boolean = false) {

@@ -1,19 +1,18 @@
-import { registerGObjectClass } from '@utils/gjs';
-import { Clutter, Mtk, Meta, St } from '@gi.ext';
-import LayoutWidget from '@components/layout/LayoutWidget';
-import Tile from '@components/layout/Tile';
-import Layout from '@components/layout/Layout';
-import { buildMarginOf, buildRectangle } from '@utils/ui';
-import { logger } from '@utils/logger';
+import { registerGObjectClass } from '../../utils/gjs';
+import { Clutter, Mtk, Meta, St } from '../../gi/ext';
+import LayoutWidget from '../../components/layout/LayoutWidget';
+import Tile from '../../components/layout/Tile';
+import Layout from '../../components/layout/Layout';
+import { buildMarginOf, buildRectangle } from '../../utils/ui';
 import TilePreviewWithWindow from './tilePreviewWithWindow';
 import MetaWindowGroup from './MetaWindowGroup';
 import { _ } from '../../translations';
 
-const debug = logger('MultipleWindowsIcon');
 const OUTER_GAPS = 2;
 
-@registerGObjectClass
 export default class MultipleWindowsIcon extends LayoutWidget<TilePreviewWithWindow> {
+    static { registerGObjectClass(this) }
+
     private _label: St.Label;
     private _window: MetaWindowGroup;
 

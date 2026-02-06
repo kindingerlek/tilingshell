@@ -1,8 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { Meta } from '@gi.ext';
-import { logger } from '@utils/logger';
-
-const debug = logger('MetaWindowGroup');
+import { Meta } from '../../gi/ext';
 
 /**
  * Represents a group of windows and allows executing methods on all of them simultaneously.
@@ -40,14 +36,10 @@ export default class MetaWindowGroup {
                 // If the property exists on a Meta.Window instance, proxy the call to all windows
                 // @ts-expect-error "This is expected"
                 if (typeof this._windows[0]?.[prop] === 'function') {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     return (...args: any[]) => {
-                        // debug(`Called function: ${String(prop)}`);
-
                         // Execute the method on each window in the group
                         this._windows.forEach((win) =>
                             // @ts-expect-error "This is expected"
-                            // eslint-disable-next-line @typescript-eslint/ban-types
                             (win[prop] as Function)(...args),
                         );
                     };
@@ -78,7 +70,6 @@ export default class MetaWindowGroup {
     }
 
     public connectObject(...args: any[]) {
-        // @ts-expect-error "This is expected"
         return this._windows[0].connectObject(...args);
     }
 

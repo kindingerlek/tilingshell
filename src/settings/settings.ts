@@ -1,12 +1,19 @@
-import { Gio, GObject, GLib } from '@gi.shared';
+import { Gio, GObject, GLib } from '../gi/shared';
 import Layout from '../components/layout/Layout';
 import Tile from '../components/layout/Tile';
+import { CustomApplicationRules } from '@components/customRulesManager';
 
 export enum ActivationKey {
     NONE = -1,
     CTRL = 0,
     ALT,
     SUPER,
+}
+
+export enum EdgeTilingMode {
+    DEFAULT = 'default',
+    ADAPTIVE = 'adaptive',
+    GRANULAR = 'granular',
 }
 
 /** ------------- Utility functions ------------- */
@@ -79,27 +86,24 @@ export default class Settings {
     static KEY_LAST_VERSION_NAME_INSTALLED = 'last-version-name-installed';
     static KEY_OVERRIDDEN_SETTINGS = 'overridden-settings';
     static KEY_WINDOW_BORDER_COLOR = 'window-border-color';
-    static KEY_WINDOW_USE_CUSTOM_BORDER_COLOR =
-        'window-use-custom-border-color';
+    static KEY_WINDOW_USE_CUSTOM_BORDER_COLOR = 'window-use-custom-border-color';
     static KEY_TILING_SYSTEM = 'enable-tiling-system';
     static KEY_SNAP_ASSIST = 'enable-snap-assist';
+    static KEY_SNAP_ASSIST_SYNC_LAYOUT = 'snap-assist-sync-layout';
     static KEY_SHOW_INDICATOR = 'show-indicator';
     static KEY_TILING_SYSTEM_ACTIVATION_KEY = 'tiling-system-activation-key';
-    static KEY_TILING_SYSTEM_DEACTIVATION_KEY =
-        'tiling-system-deactivation-key';
-    static KEY_SPAN_MULTIPLE_TILES_ACTIVATION_KEY =
-        'span-multiple-tiles-activation-key';
+    static KEY_TILING_SYSTEM_DEACTIVATION_KEY = 'tiling-system-deactivation-key';
+    static KEY_SPAN_MULTIPLE_TILES_ACTIVATION_KEY = 'span-multiple-tiles-activation-key';
     static KEY_SPAN_MULTIPLE_TILES = 'enable-span-multiple-tiles';
     static KEY_RESTORE_WINDOW_ORIGINAL_SIZE = 'restore-window-original-size';
     static KEY_WRAPAROUND_FOCUS = 'enable-wraparound-focus';
-    static KEY_ENABLE_DIRECTIONAL_FOCUS_TILED_ONLY =
-        'enable-directional-focus-tiled-only';
+    static KEY_ENABLE_DIRECTIONAL_FOCUS_TILED_ONLY = 'enable-directional-focus-tiled-only';
     static KEY_RESIZE_COMPLEMENTING_WINDOWS = 'resize-complementing-windows';
     static KEY_ENABLE_BLUR_SNAP_ASSISTANT = 'enable-blur-snap-assistant';
-    static KEY_ENABLE_BLUR_SELECTED_TILEPREVIEW =
-        'enable-blur-selected-tilepreview';
+    static KEY_ENABLE_BLUR_SELECTED_TILEPREVIEW = 'enable-blur-selected-tilepreview';
     static KEY_ENABLE_MOVE_KEYBINDINGS = 'enable-move-keybindings';
     static KEY_ENABLE_AUTO_TILING = 'enable-autotiling';
+    static KEY_RAISE_TOGETHER = 'raise-together';
     static KEY_ACTIVE_SCREEN_EDGES = 'active-screen-edges';
     static KEY_TOP_EDGE_MAXIMIZE = 'top-edge-maximize';
     static KEY_OVERRIDE_WINDOW_MENU = 'override-window-menu';
@@ -113,16 +117,14 @@ export default class Settings {
     static KEY_SETTING_LAYOUTS_JSON = 'layouts-json';
     static KEY_SETTING_SELECTED_LAYOUTS = 'selected-layouts';
     static KEY_WINDOW_BORDER_WIDTH = 'window-border-width';
-    static KEY_ENABLE_SMART_WINDOW_BORDER_RADIUS =
-        'enable-smart-window-border-radius';
+    static KEY_ENABLE_SMART_WINDOW_BORDER_RADIUS = 'enable-smart-window-border-radius';
     static KEY_QUARTER_TILING_THRESHOLD = 'quarter-tiling-threshold';
     static KEY_EDGE_TILING_OFFSET = 'edge-tiling-offset';
-    static KEY_ENABLE_TILING_SYSTEM_WINDOWS_SUGGESTIONS =
-        'enable-tiling-system-windows-suggestions';
-    static KEY_ENABLE_SNAP_ASSISTANT_WINDOWS_SUGGESTIONS =
-        'enable-snap-assistant-windows-suggestions';
-    static KEY_ENABLE_SCREEN_EDGES_WINDOWS_SUGGESTIONS =
-        'enable-screen-edges-windows-suggestions';
+    static KEY_ENABLE_TILING_SYSTEM_WINDOWS_SUGGESTIONS = 'enable-tiling-system-windows-suggestions';
+    static KEY_ENABLE_SNAP_ASSISTANT_WINDOWS_SUGGESTIONS = 'enable-snap-assistant-windows-suggestions';
+    static KEY_ENABLE_SCREEN_EDGES_WINDOWS_SUGGESTIONS = 'enable-screen-edges-windows-suggestions';    
+    static KEY_APPLICATION_CUSTOMRULES = 'application-custom-rules';
+    static KEY_EDGE_TILING_MODE = 'edge-tiling-mode';
 
     static SETTING_MOVE_WINDOW_RIGHT = 'move-window-right';
     static SETTING_MOVE_WINDOW_LEFT = 'move-window-left';
@@ -164,7 +166,6 @@ export default class Settings {
 
     static bind(
         key: string,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         object: GObject.Object | any,
         property: string,
         flags: Gio.SettingsBindFlags = Gio.SettingsBindFlags.DEFAULT,
@@ -202,6 +203,14 @@ export default class Settings {
 
     static set SNAP_ASSIST(val: boolean) {
         set_boolean(Settings.KEY_SNAP_ASSIST, val);
+    }
+
+    static get SNAP_ASSIST_SYNC_LAYOUT(): boolean {
+        return get_boolean(Settings.KEY_SNAP_ASSIST_SYNC_LAYOUT);
+    }
+
+    static set SNAP_ASSIST_SYNC_LAYOUT(val: boolean) {
+        set_boolean(Settings.KEY_SNAP_ASSIST_SYNC_LAYOUT, val);
     }
 
     static get SHOW_INDICATOR(): boolean {
@@ -331,6 +340,14 @@ export default class Settings {
 
     static set ENABLE_AUTO_TILING(val: boolean) {
         set_boolean(Settings.KEY_ENABLE_AUTO_TILING, val);
+    }
+
+    static get RAISE_TOGETHER(): boolean {
+        return get_boolean(Settings.KEY_RAISE_TOGETHER);
+    }
+
+    static set RAISE_TOGETHER(val: boolean) {
+        set_boolean(Settings.KEY_RAISE_TOGETHER, val);
     }
 
     static get ACTIVE_SCREEN_EDGES(): boolean {
@@ -478,6 +495,18 @@ export default class Settings {
         set_boolean(Settings.KEY_ENABLE_SCREEN_EDGES_WINDOWS_SUGGESTIONS, val);
     }
 
+    static get EDGE_TILING_MODE(): EdgeTilingMode {
+        const value = get_string(Settings.KEY_EDGE_TILING_MODE);
+        if (Object.values(EdgeTilingMode).includes(value as EdgeTilingMode))
+            return value as EdgeTilingMode;
+
+        return EdgeTilingMode.DEFAULT;
+    }
+
+    static set EDGE_TILING_MODE(val: EdgeTilingMode) {
+        set_string(Settings.KEY_EDGE_TILING_MODE, val);
+    }
+
     static get_inner_gaps(scaleFactor: number = 1): {
         top: number;
         bottom: number;
@@ -519,7 +548,7 @@ export default class Settings {
             if (layouts.length === 0)
                 throw new Error('At least one layout is required');
             return layouts.filter((layout) => layout.tiles.length > 0);
-        } catch (ex: unknown) {
+        } catch (_unused) {
             this.reset_layouts_json();
             return JSON.parse(
                 this._settings?.get_string(this.KEY_SETTING_LAYOUTS_JSON) ||
@@ -685,7 +714,42 @@ export default class Settings {
         );
     }
 
-    static connect(key: string, func: (...arg: unknown[]) => void): number {
+    static get_application_custom_rules(): Array<CustomApplicationRules> {
+        try {
+            const json = get_string(Settings.KEY_APPLICATION_CUSTOMRULES);
+            const rules = JSON.parse(json) as Array<CustomApplicationRules>;
+
+            // Validate all rules - if any rule is invalid, clear all custom rules
+            const hasInvalidRule = rules.some(
+                (rule) => !rule.appId || !rule.name,
+            );
+
+            if (hasInvalidRule) {
+                console.warn(
+                    'TilingShell: Invalid or corrupted custom rules detected, clearing all custom rules',
+                );
+                // Clear the invalid data
+                this.save_application_custom_rules([]);
+                return [];
+            }
+
+            return rules;
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (e) {
+            return [];
+        }
+    }
+
+    static save_application_custom_rules(
+        customRules: Array<CustomApplicationRules>,
+    ) {
+        set_string(
+            Settings.KEY_APPLICATION_CUSTOMRULES,
+            JSON.stringify(customRules),
+        );
+    }
+
+    static connect(key: string, func: (..._arg: unknown[]) => void): number {
         return this._settings?.connect(`changed::${key}`, func) || -1;
     }
 

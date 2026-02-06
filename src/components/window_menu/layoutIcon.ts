@@ -1,13 +1,14 @@
-import Layout from '@components/layout/Layout';
-import LayoutWidget from '@components/layout/LayoutWidget';
-import Tile from '@components/layout/Tile';
-import SnapAssistTile from '@components/snapassist/snapAssistTile';
-import { registerGObjectClass } from '@utils/gjs';
-import { buildRectangle, getScalingFactorOf } from '@utils/ui';
-import { Clutter, Mtk } from '@gi.ext';
+import Layout from '../../components/layout/Layout';
+import LayoutWidget from '../../components/layout/LayoutWidget';
+import Tile from '../../components/layout/Tile';
+import SnapAssistTile from '../../components/snapassist/snapAssistTile';
+import { registerGObjectClass } from '../../utils/gjs';
+import { buildRectangle, getScalingFactorOf } from '../../utils/ui';
+import { Clutter, Mtk } from '../../gi/ext';
 
-@registerGObjectClass
 export default class LayoutIcon extends LayoutWidget<SnapAssistTile> {
+    static { registerGObjectClass(this) }
+    
     constructor(
         parent: Clutter.Actor,
         importantTiles: Tile[],

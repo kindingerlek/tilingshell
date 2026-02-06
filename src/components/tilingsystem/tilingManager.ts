@@ -1,6 +1,6 @@
-import { Clutter, Mtk, Meta, GLib } from '@gi.ext';
+import { Clutter, Mtk, Meta, GLib } from '../../gi/ext';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { logger } from '@utils/logger';
+import { logger } from '../../utils/logger';
 import {
     buildMargin,
     buildRectangle,
@@ -11,24 +11,26 @@ import {
     isPointInsideRect,
     isTileOnContainerBorder,
     squaredEuclideanDistance,
-} from '@/utils/ui';
-import TilingLayout from '@/components/tilingsystem/tilingLayout';
+} from '../../utils/ui';
+import TilingLayout from '../../components/tilingsystem/tilingLayout';
 import SnapAssist from '../snapassist/snapAssist';
 import SelectionTilePreview from '../tilepreview/selectionTilePreview';
-import Settings, { ActivationKey } from '@settings/settings';
-import SignalHandling from '@utils/signalHandling';
+import { ActivationKey, EdgeTilingMode } from '../../settings/settings';
+import Settings from '../../settings/settings';
+import SignalHandling from '../../utils/signalHandling';
 import Layout from '../layout/Layout';
 import Tile from '../layout/Tile';
 import TileUtils from '../layout/TileUtils';
-import GlobalState from '@utils/globalState';
+import GlobalState from '../../utils/globalState';
 import { Monitor } from 'resource:///org/gnome/shell/ui/layout.js';
 import ExtendedWindow from './extendedWindow';
 import EdgeTilingManager from './edgeTilingManager';
 import TouchPointer from './touchPointer';
-import { KeyBindingsDirection } from '@keybindings';
-import TilingShellWindowManager from '@components/windowManager/tilingShellWindowManager';
+import { KeyBindingsDirection } from '../../keybindings';
+import TilingShellWindowManager from '../../components/windowManager/tilingShellWindowManager';
 import TilingLayoutWithSuggestions from '../windowsSuggestions/tilingLayoutWithSuggestions';
-import { maximizeWindow, unmaximizeWindow } from '@utils/gnomesupport';
+import { maximizeWindow, unmaximizeWindow } from '../../utils/gnomesupport';
+import { CustomRulesManager } from '../customRulesManager';
 
 const MINIMUM_DISTANCE_TO_RESTORE_ORIGINAL_SIZE = 90;
 
@@ -76,13 +78,20 @@ export class TilingManager {
     private _movingWindowTimerId: number | null = null;
 
     private readonly _signals: SignalHandling;
-    private readonly _debug: (...content: unknown[]) => void;
+    private readonly _debug: (..._content: unknown[]) => void;
+    private readonly _customRulesManager: CustomRulesManager;
 
     /**
      * Constructs a new TilingManager instance.
      * @param monitor The monitor to manage tiling for.
+     * @param enableScaling Whether to enable scaling for the monitor.
+     * @param customRulesManager The custom rules manager instance.
      */
-    constructor(monitor: Monitor, enableScaling: boolean) {
+    constructor(
+        monitor: Monitor,
+        enableScaling: boolean,
+        customRulesManager: CustomRulesManager,
+    ) {
         this._isGrabbingWindow = false;
         this._wasSpanMultipleTilesActivated = false;
         this._wasTilingSystemActivated = false;
@@ -90,6 +99,7 @@ export class TilingManager {
         this._enableScaling = enableScaling;
         this._monitor = monitor;
         this._signals = new SignalHandling();
+        this._customRulesManager = customRulesManager;
 
         this._debug = logger(`TilingManager ${monitor.index}`);
 
@@ -101,6 +111,7 @@ export class TilingManager {
             `Work area for monitor ${this._monitor.index}: ${this._workArea.x} ${this._workArea.y} ${this._workArea.width}x${this._workArea.height}`,
         );
         this._edgeTilingManager = new EdgeTilingManager(this._workArea);
+        this._edgeTilingManager.monitorIndex = this._monitor.index;
 
         // handle scale factor of the monitor
         const monitorScalingFactor = this._enableScaling
@@ -506,6 +517,32 @@ export class TilingManager {
                 TouchPointer.get().onTouchEvent(x, y);
             },
         );
+        // Add Wacom tablet support, listen to tablet events
+        this._signals.connect(
+            global.stage,
+            'captured-event',
+            (_source, event: Clutter.Event) => {
+                const device = event.get_source_device();
+                if (!device) return;
+
+                const deviceType = device.get_device_type();
+
+                // Check for tablet device types
+                if (deviceType === Clutter.InputDeviceType.TABLET_DEVICE ||
+                    deviceType === Clutter.InputDeviceType.PEN_DEVICE) {
+
+                    const eventType = event.type();
+                    // Capture motion events from tablet
+                    if (eventType === Clutter.EventType.MOTION) {
+                        const [x, y] = event.get_coords();
+                        TouchPointer.get().onTouchEvent(x, y);
+                        // Move the actual mouse cursor to match tablet position
+                        const seat = Clutter.get_default_backend().get_default_seat();
+                        seat.warp_pointer(x, y);
+                    }
+                }
+            },
+        );
 
         // workaround for gnome-shell bug https://gitlab.gnome.org/GNOME/gnome-shell/-/issues/2857
         if (
@@ -543,19 +580,19 @@ export class TilingManager {
     ): boolean {
         if (key === ActivationKey.NONE) return true;
 
-        let val = 2;
+        let mask = Clutter.ModifierType.CONTROL_MASK;
         switch (key) {
             case ActivationKey.CTRL:
-                val = 2; // Clutter.ModifierType.CONTROL_MASK
+                mask = Clutter.ModifierType.CONTROL_MASK;
                 break;
             case ActivationKey.ALT:
-                val = 3; // Clutter.ModifierType.MOD1_MASK
+                mask = Clutter.ModifierType.MOD1_MASK;
                 break;
             case ActivationKey.SUPER:
-                val = 6; // Clutter.ModifierType.SUPER_MASK
+                mask = Clutter.ModifierType.SUPER_MASK;
                 break;
         }
-        return (modifier & (1 << val)) !== 0;
+        return (modifier & mask) === mask;
     }
 
     private _onMovingWindow(window: Meta.Window, grabOp: number) {
@@ -568,6 +605,8 @@ export class TilingManager {
         const currentWs = window.get_workspace();
         const tilingLayout = this._workspaceTilingLayout.get(currentWs);
         if (!tilingLayout) return GLib.SOURCE_REMOVE;
+
+        this._edgeTilingManager.workspaceIndex = currentWs.index();
 
         // if the window was moved into another monitor and it is still grabbed
         if (
@@ -662,11 +701,14 @@ export class TilingManager {
                 ? false
                 : this._activationKeyStatus(modifier, deactivationKey);
         const allowSpanMultipleTiles =
-            Settings.SPAN_MULTIPLE_TILES && isSpanMultiTilesActivated;
+            Settings.SPAN_MULTIPLE_TILES &&
+            isSpanMultiTilesActivated &&
+            this._customRulesManager.isSpanMultipleTilesEnabled(window);
         const showTilingSystem =
             Settings.TILING_SYSTEM &&
             isTilingSystemActivated &&
-            !isTilingSystemDeactivated;
+            !isTilingSystemDeactivated &&
+            this._customRulesManager.isAutoTilingEnabled(window);
         // ensure we handle window movement only when needed
         // if the snap assistant activation key status is not changed and the mouse is on the same position as before
         // and the tiling system activation key status is not changed, we have nothing to do
@@ -712,11 +754,14 @@ export class TilingManager {
                     this._edgeTilingManager.abortEdgeTiling();
                 }
 
-                if (Settings.SNAP_ASSIST) {
+                if (
+                    Settings.SNAP_ASSIST &&
+                    this._customRulesManager.isSnapAssistEnabled(window)
+                ) {
                     this._snapAssist.onMovingWindow(
                         window,
-                        true,
                         currPointerPos,
+                        true,
                     );
                 }
             }
@@ -820,12 +865,13 @@ export class TilingManager {
         this._edgeTilingManager.abortEdgeTiling();
 
         const canShowTilingSuggestions =
-            (wasSnapAssistingLayout &&
+            ((wasSnapAssistingLayout &&
                 Settings.ENABLE_SNAP_ASSISTANT_WINDOWS_SUGGESTIONS) ||
-            (wasEdgeTiling &&
-                Settings.ENABLE_SCREEN_EDGES_WINDOWS_SUGGESTIONS) ||
-            (isTilingSystemActivated &&
-                Settings.ENABLE_TILING_SYSTEM_WINDOWS_SUGGESTIONS);
+                (wasEdgeTiling &&
+                    Settings.ENABLE_SCREEN_EDGES_WINDOWS_SUGGESTIONS) ||
+                (isTilingSystemActivated &&
+                    Settings.ENABLE_TILING_SYSTEM_WINDOWS_SUGGESTIONS)) &&
+            this._customRulesManager.isWindowSuggestionsEnabled(window);
 
         // abort if the pointer is moving on another monitor: the user moved
         // the window to another monitor not handled by this tiling manager
@@ -845,54 +891,36 @@ export class TilingManager {
         });
         this._easeWindowRect(window, desiredWindowRect);
 
+        // Sync the desktop layout to match the snap-assisted layout if enabled
+        if (wasSnapAssistingLayout && Settings.SNAP_ASSIST_SYNC_LAYOUT) {
+            GlobalState.get().setSelectedLayoutOfMonitor(
+                wasSnapAssistingLayout.id,
+                this._monitor.index,
+            );
+        }
+
         if (!tilingLayout || !canShowTilingSuggestions) return;
 
         // retrieve the current layout for the monitor and workspace
         // were the window was tiled
         const layout = wasEdgeTiling
-            ? new Layout(
-                  [
-                      // top-left
-                      new Tile({
-                          x: 0,
-                          y: 0,
-                          width: 0.5,
-                          height: 0.5,
-                          groups: [],
-                      }),
-                      // top-right
-                      new Tile({
-                          x: 0.5,
-                          y: 0,
-                          width: 0.5,
-                          height: 0.5,
-                          groups: [],
-                      }),
-                      // bottom-left
-                      new Tile({
-                          x: 0,
-                          y: 0.5,
-                          width: 0.5,
-                          height: 0.5,
-                          groups: [],
-                      }),
-                      // bottom-right
-                      new Tile({
-                          x: 0.5,
-                          y: 0.5,
-                          width: 0.5,
-                          height: 0.5,
-                          groups: [],
-                      }),
-                  ],
-                  'edge-tiling-layout',
-              )
-            : wasSnapAssistingLayout
+            ? (Settings.EDGE_TILING_MODE === EdgeTilingMode.DEFAULT
+                ? new Layout([
+                    new Tile({ x: 0, y: 0, height: 0.5, width: 0.5, groups: []}),
+                    new Tile({ x: 0.5, y: 0, height: 0.5, width: 0.5, groups: []}),
+                    new Tile({ x: 0, y: 0.5, height: 0.5, width: 0.5, groups: []}),
+                    new Tile({ x: 0.5, y: 0.5, height: 0.5, width: 0.5, groups: []})],
+                    "quarters"
+                )
+                : GlobalState.get().getSelectedLayoutOfMonitor(
+                  this._monitor.index,
+                  window.get_workspace().index())
+            ): (wasSnapAssistingLayout
               ? wasSnapAssistingLayout
               : GlobalState.get().getSelectedLayoutOfMonitor(
                     this._monitor.index,
                     window.get_workspace().index(),
-                );
+                ));
         this._openWindowsSuggestions(
             window,
             desiredWindowRect,
@@ -922,7 +950,10 @@ export class TilingManager {
                 (extWin as ExtendedWindow).assignedTile
             )
                 tiledWindows.push(extWin as ExtendedWindow);
-            else nontiledWindows.push(extWin);
+            else if (
+                this._customRulesManager.isWindowSuggestionsEnabled(extWin)
+            )
+                nontiledWindows.push(extWin);
         });
 
         if (nontiledWindows.length === 0) return;
@@ -970,7 +1001,7 @@ export class TilingManager {
 
         // apply animations when tiling the window
         windowActor.remove_all_transitions();
-        // @ts-expect-error "Main.wm has the private function _prepareAnimationInfo"
+        // @ts-expect-error "Main.wm has the "private" function _prepareAnimationInfo"
         Main.wm._prepareAnimationInfo(
             global.windowManager,
             windowActor,
@@ -1085,8 +1116,8 @@ export class TilingManager {
             );
         }
         if (window)
-            this._selectedTilesPreview.openAbove(window, ease, position);
-        else this._selectedTilesPreview.open(ease, position);
+            this._selectedTilesPreview.openAbove(window, position, ease);
+        else this._selectedTilesPreview.open(position, ease);
     }
 
     /**
@@ -1137,7 +1168,7 @@ export class TilingManager {
             });
             initialRect.x -= initialRect.width / 2;
             initialRect.y -= initialRect.height / 2;
-            this._selectedTilesPreview.open(false, initialRect);
+            this._selectedTilesPreview.open(initialRect, false);
         }
 
         this.openSelectionTilePreview(edgeTile, false, true, window);
@@ -1261,6 +1292,9 @@ export class TilingManager {
         )
             return;
 
+        // check custom rules for this window
+        if (!this._customRulesManager.isAutoTilingEnabled(window)) return;
+
         (window as ExtendedWindow).assignedTile = undefined;
         const vacantTile = this._findEmptyTile(window);
         if (!vacantTile) return;
@@ -1278,7 +1312,8 @@ export class TilingManager {
                     !window.maximizedHorizontally &&
                     !window.maximizedVertically &&
                     window.get_transient_for() === null &&
-                    !window.is_attached_dialog()
+                    !window.is_attached_dialog() &&
+                    this._customRulesManager.isAutoTilingEnabled(window)
                 )
                     this._easeWindowRectFromTile(vacantTile, window, true);
 

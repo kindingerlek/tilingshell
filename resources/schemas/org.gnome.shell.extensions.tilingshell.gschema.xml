@@ -27,6 +27,11 @@
             <summary>Enable snap assist</summary>
             <description>Move the window on top of the screen to snap assist it.</description>
         </key>
+        <key name="snap-assist-sync-layout" type="b">
+            <default>false</default>
+            <summary>Sync layout when tiling with Snap Assistant</summary>
+            <description>Change the desktop layout to match the layout used when tiling a window with Snap Assistant.</description>
+        </key>
         <key name="show-indicator" type="b">
             <default>true</default>
             <summary>Shows indicator</summary>
@@ -101,6 +106,11 @@
             <default>false</default>
             <summary>Enable auto tiling</summary>
             <description>Automatically tile a new window to the best tile according to the current layout.</description>
+        </key>
+        <key name="raise-together" type="b">
+            <default>false</default>
+            <summary>Raise tiled windows together</summary>
+            <description>When one tiled window is raised, raise all tiled windows into the foreground together.</description>
         </key>
         <key name="overridden-settings" type="s">
             <default>'{}'</default>
@@ -189,8 +199,17 @@
         </key>
         <key name="enable-screen-edges-windows-suggestions" type="b">
             <default>false</default>
-            <summary>Enable window suggestions for screen edge snapping</summary>
-            <description>Suggests windows to occupy empty tiles when snapping to screen edges.</description>
+            <summary>Enable window suggestions for screen edge tiling</summary>
+            <description>Suggests windows to occupy empty tiles when tiling to screen edges.</description>
+        </key>
+        <key name="application-custom-rules" type="s">
+            <default>'[]'</default>
+            <summary>Application custom rules</summary>
+            <description>List of applications with custom feature settings (custom border, tiling, snap to border).</description>
+        <key name="edge-tiling-mode" type="s">
+            <default>'default'</default>
+            <summary>Edge tiling behavior</summary>
+            <description>Controls how windows snap to screen edges:\n'default' (corners snap to quarters, edges to halves),\n'adaptive' (snap to layout tiles by column),\n'granular' (snap to exact tile under cursor).</description>
         </key>
 
         <!-- keybindings -->

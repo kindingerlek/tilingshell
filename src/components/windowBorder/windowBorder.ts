@@ -1,54 +1,48 @@
-import { GObject, Meta, St, Clutter, Shell, Gio, GLib } from '@gi.ext';
-import SignalHandling from '@utils/signalHandling';
-import { logger } from '@utils/logger';
-import { registerGObjectClass } from '@utils/gjs';
-import Settings from '@settings/settings';
-import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import { GObject, Meta, St, Clutter, Shell, Gio, GLib } from '../../gi/ext';
+import SignalHandling from '../../utils/signalHandling';
+import { registerGObjectClass } from '../../utils/gjs';
+import Settings from '../../settings/settings';
 import {
     buildRectangle,
     enableScalingFactorSupport,
     getMonitorScalingFactor,
     getScalingFactorOf,
     getScalingFactorSupportString,
-} from '@utils/ui';
+} from '../../utils/ui';
+import { CustomRulesManager } from './customRulesManager';
+import { BlacklistManager } from './blacklistManager';
 
 Gio._promisify(Shell.Screenshot, 'composite_to_stream');
 
 const DEFAULT_BORDER_RADIUS = 11;
-const SMART_BORDER_RADIUS_DELAY = 460;
 const SMART_BORDER_RADIUS_FIRST_FRAME_DELAY = 240;
-
-const debug = logger('WindowBorderManager');
 
 interface WindowWithCachedRadius extends Meta.Window {
     __ts_cached_radius: [number, number, number, number] | undefined;
 }
 
-@registerGObjectClass
-class WindowBorder extends St.Bin {
+export default class WindowBorder extends St.DrawingArea {
+    static { registerGObjectClass(this) }
+
     private readonly _signals: SignalHandling;
 
     private _window: Meta.Window;
-    private _interfaceSettings: Gio.Settings;
     private _windowMonitor: number;
     private _bindings: GObject.Binding[];
     private _enableScaling: boolean;
     private _borderRadiusValue: [number, number, number, number];
     private _timeout: GLib.Source | undefined;
     private _delayedSmartBorderRadius: boolean;
-    private _borderWidth: number;
+    private _scaledBorderWidth: number;
 
     constructor(win: Meta.Window, enableScaling: boolean) {
         super({
-            style_class: 'window-border',
+            style_class: 'window-border'
         });
         this._signals = new SignalHandling();
         this._bindings = [];
-        this._borderWidth = 1;
+        this._scaledBorderWidth = 1;
         this._window = win;
-        this._interfaceSettings = new Gio.Settings({
-            schema_id: 'org.gnome.desktop.interface',
-        });
         this._windowMonitor = win.get_monitor();
         this._enableScaling = enableScaling;
         this._delayedSmartBorderRadius = false;
@@ -62,9 +56,7 @@ class WindowBorder extends St.Bin {
 
         this.close();
         global.windowGroup.add_child(this);
-
         this.trackWindow(win, true);
-
         this.connect('destroy', () => {
             this._bindings.forEach((b) => b.unbind());
             this._bindings = [];
@@ -100,16 +92,6 @@ class WindowBorder extends St.Bin {
             ),
         );
 
-        const winRect = this._window.get_frame_rect();
-        this.set_position(
-            winRect.x - this._borderWidth,
-            winRect.y - this._borderWidth,
-        );
-        this.set_size(
-            winRect.width + 2 * this._borderWidth,
-            winRect.height + 2 * this._borderWidth,
-        );
-
         if (Settings.ENABLE_SMART_WINDOW_BORDER_RADIUS) {
             const cached_radius = (this._window as WindowWithCachedRadius)
                 .__ts_cached_radius;
@@ -125,6 +107,15 @@ class WindowBorder extends St.Bin {
             }
         }
         this.updateStyle();
+        const winRect = this._window.get_frame_rect();
+        this.set_position(
+            winRect.x - this._scaledBorderWidth,
+            winRect.y - this._scaledBorderWidth,
+        );
+        this.set_size(
+            winRect.width + (2 * this._scaledBorderWidth),
+            winRect.height + (2 * this._scaledBorderWidth),
+        );
 
         const isMaximized =
             this._window.maximizedVertically &&
@@ -139,8 +130,10 @@ class WindowBorder extends St.Bin {
         else this.open();
 
         this._signals.connect(global.display, 'restacked', () => {
+            this.queue_repaint(); // a transient window might have been opened
             global.windowGroup.set_child_above_sibling(this, null);
         });
+
         this._signals.connect(this._window, 'position-changed', () => {
             if (
                 this._window.maximizedVertically ||
@@ -163,8 +156,8 @@ class WindowBorder extends St.Bin {
 
             const rect = this._window.get_frame_rect();
             this.set_position(
-                rect.x - this._borderWidth,
-                rect.y - this._borderWidth,
+                rect.x - this._scaledBorderWidth,
+                rect.y - this._scaledBorderWidth,
             );
             // if the window changes monitor, we may have a different scaling factor
             if (this._windowMonitor !== win.get_monitor()) {
@@ -196,8 +189,8 @@ class WindowBorder extends St.Bin {
 
             const rect = this._window.get_frame_rect();
             this.set_size(
-                rect.width + 2 * this._borderWidth,
-                rect.height + 2 * this._borderWidth,
+                rect.width + (2 * this._scaledBorderWidth),
+                rect.height + (2 * this._scaledBorderWidth),
             );
             // if the window changes monitor, we may have a different scaling factor
             if (this._windowMonitor !== win.get_monitor()) {
@@ -296,7 +289,6 @@ class WindowBorder extends St.Bin {
             }
         }
         // iterate pixels from bottom to top
-        // eslint-disable-next-line prettier/prettier
         for (let i = height - 1; i >= height - this._borderRadiusValue[St.Corner.TOPLEFT] - 2; i--) {
             if (pixels[i * width * 4 + 3] > alphaThreshold) {
                 this._borderRadiusValue[St.Corner.BOTTOMLEFT] = height - i - 1;
@@ -325,30 +317,6 @@ class WindowBorder extends St.Bin {
             cached_radius;
     }
 
-    private _getGnomeAccentColor(): string {
-        // get the system's accent color, fallback to user's custom color
-        try {
-            const accentColorName =
-                this._interfaceSettings.get_string('accent-color');
-            debug('accentColorName', accentColorName);
-            return accentColorName;
-            const gnomeAccentColorMapping: Record<string, string> = {
-                blue: '#3584e4',
-                teal: '#2190a4',
-                green: '#3a944a',
-                yellow: '#c88800',
-                orange: '#ed5b00',
-                red: '#e62d42',
-                pink: '#d56199',
-                purple: '#9141ac',
-                slate: '#6f8396',
-            };
-            return gnomeAccentColorMapping[accentColorName];
-        } catch (_unused) {
-            return '#000000';
-        }
-    }
-
     public updateStyle(): void {
         // handle scale factor of the monitor
         const monitorScalingFactor = this._enableScaling
@@ -363,11 +331,12 @@ class WindowBorder extends St.Bin {
             (alreadyScaled ? 1 : scalingFactor) *
             (Settings.WINDOW_BORDER_WIDTH /
                 (alreadyScaled ? scalingFactor : 1));
+        this._scaledBorderWidth = scalingFactor * Settings.WINDOW_BORDER_WIDTH;
         const borderColor = Settings.WINDOW_USE_CUSTOM_BORDER_COLOR
             ? Settings.WINDOW_BORDER_COLOR
             : '-st-accent-color';
         const radius = this._borderRadiusValue.map((val) => {
-            const valWithBorder = val === 0 ? val : val + borderWidth;
+            const valWithBorder = val === 0 ? val : (val + borderWidth);
             return (
                 (alreadyScaled ? 1 : scalingFactor) *
                 (valWithBorder / (alreadyScaled ? scalingFactor : 1))
@@ -378,18 +347,92 @@ class WindowBorder extends St.Bin {
             ? `${getScalingFactorSupportString(monitorScalingFactor)};`
             : '';
         this.set_style(
-            `border-color: ${borderColor}; border-width: ${borderWidth}px; border-radius: ${radius[St.Corner.TOPLEFT]}px ${radius[St.Corner.TOPRIGHT]}px ${radius[St.Corner.BOTTOMRIGHT]}px ${radius[St.Corner.BOTTOMLEFT]}px; ${scalingFactorSupportString}`,
+            `border-color: ${borderColor}; border-radius: ${radius[St.Corner.TOPLEFT]}px ${radius[St.Corner.TOPRIGHT]}px ${radius[St.Corner.BOTTOMRIGHT]}px ${radius[St.Corner.BOTTOMLEFT]}px; ${scalingFactorSupportString}`,
         );
+        // not setting border-width: ${borderWidth}px since we will draw the border manually in vfunc_repaint
+    }
 
-        if (this._borderWidth !== borderWidth) {
-            const diff = this._borderWidth - borderWidth;
-            this._borderWidth = borderWidth;
-            this.set_size(
-                this.get_width() - 2 * diff,
-                this.get_height() - 2 * diff,
-            );
-            this.set_position(this.get_x() + diff, this.get_y() + diff);
-        }
+    vfunc_repaint() {
+        const cr = this.get_context();
+        const themeNode = this.get_theme_node();
+        const [width, height] = this.get_surface_size();
+        if (!width || !height) return;
+
+        const borderWidth = this._scaledBorderWidth;
+        const borderColor = themeNode.get_border_color(null);
+        const radius = [0, 0, 0, 0];
+        radius[St.Corner.TOPLEFT] = themeNode.get_border_radius(St.Corner.TOPLEFT);
+        radius[St.Corner.TOPRIGHT] = themeNode.get_border_radius(St.Corner.TOPRIGHT);
+        radius[St.Corner.BOTTOMLEFT] = themeNode.get_border_radius(St.Corner.BOTTOMLEFT);
+        radius[St.Corner.BOTTOMRIGHT] = themeNode.get_border_radius(St.Corner.BOTTOMRIGHT);
+
+        const x = borderWidth / 2;
+        const y = borderWidth / 2;
+        const w = width - borderWidth;
+        const h = height - borderWidth;
+
+        cr.setSourceRGBA(borderColor.red/255, borderColor.green/255, borderColor.blue/255, borderColor.alpha/255);
+        cr.setLineWidth(borderWidth);
+
+        cr.newPath();
+
+        cr.arc(x + radius[St.Corner.TOPLEFT], y + radius[St.Corner.TOPLEFT], radius[St.Corner.TOPLEFT], Math.PI, Math.PI * 1.5);
+        cr.lineTo(x + w - radius[St.Corner.TOPRIGHT], y);
+        cr.arc(x + w - radius[St.Corner.TOPRIGHT], y + radius[St.Corner.TOPRIGHT], radius[St.Corner.TOPRIGHT], Math.PI * 1.5, 0);
+        cr.lineTo(x + w, y + h - radius[St.Corner.BOTTOMRIGHT]);
+        cr.arc(x + w - radius[St.Corner.BOTTOMRIGHT], y + h - radius[St.Corner.BOTTOMRIGHT], radius[St.Corner.BOTTOMRIGHT], 0, Math.PI * 0.5);
+        cr.lineTo(x + radius[St.Corner.BOTTOMLEFT], y + h);
+        cr.arc(x + radius[St.Corner.BOTTOMLEFT], y + h - radius[St.Corner.BOTTOMLEFT], radius[St.Corner.BOTTOMLEFT], Math.PI * 0.5, Math.PI);
+        cr.closePath();
+        cr.stroke();
+
+        /* For debugging purposes, uncomment this line to draw a rectangle around transient window */
+        /*const winRect = this._window.get_frame_rect();
+        // Iterate over transient windows
+        this._window.foreach_transient((_transient: Meta.Window) => {
+            const transientRect = _transient.get_frame_rect();
+
+            // Compute rectangle position relative to the main window
+            const transientX = transientRect.x - winRect.x + borderWidth;
+            const transientY = transientRect.y - winRect.y + borderWidth;
+            const transientWidth = transientRect.width;
+            const transientHeight = transientRect.height;
+
+            // Draw the rectangle
+            cr.setSourceRGBA(1, 0, 0, 1); // Example: red color
+            cr.setLineWidth(2);            // Example line width
+            cr.rectangle(transientX, transientY, transientWidth, transientHeight);
+            cr.stroke();
+
+            console.log("Drawing rectangle for transient window at", transientX, transientY, transientWidth, transientHeight);
+
+            return true;
+        });*/
+        cr.save();
+        const winRect = this._window.get_frame_rect();
+        // Iterate over transient windows
+        this._window.foreach_transient((_transient: Meta.Window) => {
+            const transientRect = _transient.get_frame_rect();
+
+            // Compute rectangle position relative to the main window
+            const transientX = transientRect.x - winRect.x + borderWidth;
+            const transientY = transientRect.y - winRect.y + borderWidth;
+            const transientWidth = transientRect.width;
+            const transientHeight = transientRect.height;
+
+            // Clip with this rectangle
+            cr.rectangle(transientX, transientY, transientWidth, transientHeight);
+
+            return true; // true to continue
+        });
+        cr.clip();
+
+        // Set operator to clear pixels inside clipping region
+        cr.setOperator(0); // Cairo.Operator.CLEAR
+        cr.paint();
+        cr.restore(); // restore original clipping & operator
+
+        cr.$dispose();
     }
 
     public open() {
@@ -409,101 +452,3 @@ class WindowBorder extends St.Bin {
         this.hide();
     }
 }
-
-export class WindowBorderManager {
-    private readonly _signals: SignalHandling;
-
-    private _border: WindowBorder | null;
-    private _enableScaling: boolean;
-    private _interfaceSettings: Gio.Settings;
-
-    constructor(enableScaling: boolean) {
-        this._signals = new SignalHandling();
-        this._border = null;
-        this._enableScaling = enableScaling;
-        this._interfaceSettings = new Gio.Settings({
-            schema_id: 'org.gnome.desktop.interface',
-        });
-    }
-
-    public enable(): void {
-        if (Settings.ENABLE_WINDOW_BORDER) this._turnOn();
-
-        // enable/disable based on user preferences
-        this._signals.connect(
-            Settings,
-            Settings.KEY_ENABLE_WINDOW_BORDER,
-            () => {
-                if (Settings.ENABLE_WINDOW_BORDER) this._turnOn();
-                else this._turnOff();
-            },
-        );
-    }
-
-    private _turnOn() {
-        this._onWindowFocused();
-        this._signals.connect(
-            global.display,
-            'notify::focus-window',
-            this._onWindowFocused.bind(this),
-        );
-        this._signals.connect(Settings, Settings.KEY_WINDOW_BORDER_COLOR, () =>
-            this._border?.updateStyle(),
-        );
-        this._signals.connect(
-            Settings,
-            Settings.KEY_WINDOW_USE_CUSTOM_BORDER_COLOR,
-            () => this._border?.updateStyle(),
-        );
-        this._interfaceSettings.connect('changed::accent-color', () =>
-            this._border?.updateStyle(),
-        );
-        this._signals.connect(Settings, Settings.KEY_WINDOW_BORDER_WIDTH, () =>
-            this._border?.updateStyle(),
-        );
-    }
-
-    private _turnOff() {
-        this.destroy();
-        this.enable();
-    }
-
-    public destroy(): void {
-        this._signals.disconnect();
-        this._border?.destroy();
-        this._border = null;
-    }
-
-    private _onWindowFocused(): void {
-        // connect signals on the window and create the border
-        const metaWindow = global.display.focus_window;
-
-        if (
-            !metaWindow ||
-            metaWindow.get_wm_class() === null ||
-            metaWindow.get_wm_class() === 'gjs'
-        ) {
-            this._border?.destroy();
-            this._border = null;
-            return;
-        }
-
-        if (!this._border)
-            this._border = new WindowBorder(metaWindow, this._enableScaling);
-        else this._border.trackWindow(metaWindow);
-    }
-}
-
-/*
-If in the future we want to have MULTIPLE borders visible AT THE SAME TIME,
-when the windows are restacked we have to restack the borders as well.
-
-display.connect('restacked', (display) => {
-    let wg = Meta.get_window_group_for_display(display); // From GNOME 48 use Meta.Compositor.get_window_group
-    forEachWindowInTheWindowGroup((win) => {
-        winBorder = getWindowBorder(win)
-        winActor = win.get_compositor_private()
-        wg.set_child_above_sibling(winBorder, winActor);
-    });
-});
-*/

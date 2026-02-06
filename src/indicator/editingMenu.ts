@@ -1,10 +1,10 @@
-import { St } from '@gi.ext';
+import { St } from '../gi/ext';
 import Indicator from './indicator';
-import * as IndicatorUtils from './utils';
+import { createButton } from './utils';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import CurrentMenu from './currentMenu';
 import { _ } from '../translations';
-import { widgetOrientation } from '@utils/gnomesupport';
+import { widgetOrientation } from '../utils/gnomesupport';
 
 export default class EditingMenu implements CurrentMenu {
     private readonly _indicator: Indicator;
@@ -19,7 +19,7 @@ export default class EditingMenu implements CurrentMenu {
             ...widgetOrientation(true),
         });
 
-        const openMenuBtn = IndicatorUtils.createButton(
+        const openMenuBtn = createButton(
             'menu-symbolic',
             _('Menu'),
             this._indicator.path,
@@ -27,7 +27,7 @@ export default class EditingMenu implements CurrentMenu {
         openMenuBtn.connect('clicked', () => this._indicator.openMenu(false));
         boxLayout.add_child(openMenuBtn);
 
-        const infoMenuBtn = IndicatorUtils.createButton(
+        const infoMenuBtn = createButton(
             'info-symbolic',
             _('Info'),
             this._indicator.path,
@@ -35,7 +35,7 @@ export default class EditingMenu implements CurrentMenu {
         infoMenuBtn.connect('clicked', () => this._indicator.openMenu(true));
         boxLayout.add_child(infoMenuBtn);
 
-        const saveBtn = IndicatorUtils.createButton(
+        const saveBtn = createButton(
             'save-symbolic',
             _('Save'),
             this._indicator.path,
@@ -46,7 +46,7 @@ export default class EditingMenu implements CurrentMenu {
         });
         boxLayout.add_child(saveBtn);
 
-        const cancelBtn = IndicatorUtils.createButton(
+        const cancelBtn = createButton(
             'cancel-symbolic',
             _('Cancel'),
             this._indicator.path,

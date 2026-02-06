@@ -1,10 +1,10 @@
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { GObject, Meta, Gio, Shell, GLib, Clutter } from '@gi.ext';
-import Settings from '@settings/settings';
-import SettingsOverride from '@settings/settingsOverride';
-import SignalHandling from '@utils/signalHandling';
-import { registerGObjectClass } from '@utils/gjs';
-import { logger } from '@utils/logger';
+import { GObject, Meta, Gio, Shell, GLib, Clutter } from './gi/ext';
+import Settings from './settings/settings';
+import SettingsOverride from './settings/settingsOverride';
+import SignalHandling from './utils/signalHandling';
+import { registerGObjectClass } from './utils/gjs';
+import { logger } from './utils/logger';
 
 const debug = logger('KeyBindings');
 
@@ -21,9 +21,8 @@ export enum FocusSwitchDirection {
     PREV,
 }
 
-@registerGObjectClass
 export default class KeyBindings extends GObject.Object {
-    static metaInfo: GObject.MetaInfo<unknown, unknown, unknown> = {
+    static { registerGObjectClass(this, {
         GTypeName: 'KeyBindings',
         Signals: {
             'move-window': {
@@ -58,7 +57,7 @@ export default class KeyBindings extends GObject.Object {
                 ], // Meta.Display, number, number
             },
         },
-    };
+    })};
 
     private _signals: SignalHandling;
 

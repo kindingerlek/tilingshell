@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/org/gnome/Shell/Extensions/tilingshell">
+    <file preprocess="xml-stripblanks">icons/edge-adaptive-symbolic.svg</file>
+    <file preprocess="xml-stripblanks">icons/edge-default-symbolic.svg</file>
+    <file preprocess="xml-stripblanks">icons/edge-granular-symbolic.svg</file>
+  </gresource>
+</gresources>

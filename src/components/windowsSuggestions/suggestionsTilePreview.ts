@@ -1,16 +1,15 @@
-import { registerGObjectClass } from '@/utils/gjs';
-import { GObject, St, Clutter, Mtk } from '@gi.ext';
+import { registerGObjectClass } from '../../utils/gjs';
+import { GObject, St, Clutter, Mtk } from '../../gi/ext';
 import TilePreview from '../tilepreview/tilePreview';
-import { buildBlurEffect, widgetOrientation } from '@utils/gnomesupport';
-import Tile from '@components/layout/Tile';
+import { buildBlurEffect, widgetOrientation } from '../../utils/gnomesupport';
+import Tile from '../../components/layout/Tile';
 import MasonryLayoutManager from './masonryLayoutManager';
 
 const MASONRY_LAYOUT_SPACING = 32;
 const SCROLLBARS_SHOW_ANIM_DURATION = 100; // ms
 
-@registerGObjectClass
 export default class SuggestionsTilePreview extends TilePreview {
-    static metaInfo: GObject.MetaInfo<unknown, unknown, unknown> = {
+    static { registerGObjectClass(this, {
         GTypeName: 'PopupTilePreview',
         Properties: {
             blur: GObject.ParamSpec.boolean(
@@ -21,7 +20,7 @@ export default class SuggestionsTilePreview extends TilePreview {
                 false,
             ),
         },
-    };
+    })};
 
     private _blur: boolean;
     private _container: St.BoxLayout;

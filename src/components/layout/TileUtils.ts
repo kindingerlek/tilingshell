@@ -1,6 +1,6 @@
-import { Mtk } from '@gi.ext';
+import { Mtk } from '../../gi/ext';
 import Tile from './Tile';
-import { buildRectangle } from '@utils/ui';
+import { buildRectangle } from '../../utils/ui';
 
 export default class TileUtils {
     static apply_props(tile: Tile, container: Mtk.Rectangle): Mtk.Rectangle {

@@ -1,9 +1,10 @@
-import { registerGObjectClass } from '@/utils/gjs';
-import { Shell } from '@gi.ext';
+import { registerGObjectClass } from '../../utils/gjs';
+import { Shell } from '../../gi/ext';
 import TilePreview from './tilePreview';
 
-@registerGObjectClass
 export default class BlurTilePreview extends TilePreview {
+    static { registerGObjectClass(this) }
+    
     _init() {
         super._init();
 

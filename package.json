@@ -1,15 +1,17 @@
 {
   "name": "tilingshell",
-  "version": "17.1",
+  "version": "17.3",
   "author": "Domenico Ferraro <ferraro.domenico125@gmail.com>",
   "private": true,
   "license": "GPL v2.0",
   "scripts": {
-    "build": "npm run clean && node esbuild.mjs && npm run build:schema",
+    "build": "npm run clean && node esbuild.mjs && npm run build:schema && npm run build:resources",
     "clean": "rm -rf dist; rm -rf dist_legacy",
     "update-translations": "npm run create:translations && npm run merge:translations && npm run build:translations",
     "build:schema": "npm run clean:schema && glib-compile-schemas ./resources/schemas --targetdir=./dist/schemas/ && cp ./dist/schemas/ ./dist_legacy/ -r",
+    "build:resources": "npm run clean:resources && glib-compile-resources --sourcedir=./resources --target=./dist/resources.gresource ./resources/resources.gresource.xml && cp ./dist/*.gresource ./dist_legacy/ -r",
     "clean:schema": "rm -rf ./dist/schemas/*.compiled; rm -rf ./dist_legacy/schemas/*.compiled",
+    "clean:resources": "rm -rf ./dist/*.gresource; rm -rf ./dist_legacy/*.gresource",
     "build:package": "npm run clean:package; npm run build && cd ./dist && zip -qr ../tilingshell@ferrarodomenico.com.zip * && cd ../dist_legacy && zip -qr ../GNOME.42-44.tilingshell@ferrarodomenico.com.zip *",
     "clean:package": "rm -rf './dist/tilingshell@ferrarodomenico.com.zip'; rm -rf './dist_legacy/tilingshell@ferrarodomenico.com.zip'",
     "install:extension": "mkdir -p ~/.local/share/gnome-shell/extensions/tilingshell@ferrarodomenico.com && cp ./dist$([ $(gnome-shell --version | grep -o -E '[0-9]+' | head -n 1) -le 44 ] && echo '_legacy')/* ~/.local/share/gnome-shell/extensions/tilingshell@ferrarodomenico.com/ -r",
@@ -18,8 +20,9 @@
     "build:translations": "for file in $(ls translations/*.po); do mkdir -p resources/locale/$(basename $file .po)/LC_MESSAGES; msgfmt -c $file -o resources/locale/$(basename $file .po)/LC_MESSAGES/tilingshell.mo; done",
     "create:translations": "rm -f translations/tilingshell@ferrarodomenico.com.pot && xgettext --from-code=UTF-8 --output=translations/tilingshell@ferrarodomenico.com.pot --language=javascript --force-po dist/prefs.js dist/extension.js",
     "merge:translations": "for file in $(ls translations/*.po); do msgmerge -U $file translations/tilingshell@ferrarodomenico.com.pot --backup=none; done",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "lint:build": "eslint dist dist_legacy --fix",
     "prettier:check": "prettier --check \"**/*.{ts,scss}\"",
     "prettier:fix": "prettier --write \"**/*.{ts,scss}\"",
     "vm:sync": "vagrant rsync",
@@ -34,18 +37,21 @@
     "vm:halt:gnome49": "vagrant halt gnome49"
   },
   "devDependencies": {
+    "@babel/generator": "^7.28.3",
+    "@babel/parser": "^7.28.4",
+    "@babel/traverse": "^7.28.4",
     "esbuild": "^0.25.10",
     "esbuild-sass-plugin": "^3.3.1",
-    "eslint": "^9.36.0",
+    "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.4",
+    "@typescript-eslint/eslint-plugin": "^8.48.0",
+    "@typescript-eslint/parser": "^8.48.0",
     "glob": "^11.0.3",
     "globals": "^16.4.0",
-    "prettier": "^3.6.2",
-    "typescript": "^5.9.2",
-    "typescript-eslint": "^8.44.1"
+    "prettier": "^3.7.3",
+    "typescript": "^5.9.2"
   },
   "dependencies": {
-    "@girs/gnome-shell": "^49.0.1"
+    "@girs/gnome-shell": "^49.1.0"
   }
 }

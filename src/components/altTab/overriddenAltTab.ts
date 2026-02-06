@@ -1,23 +1,19 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import * as AltTab from 'resource:///org/gnome/shell/ui/altTab.js';
-import { St, Meta, Clutter } from '@gi.ext';
-import { logger } from '@utils/logger';
-import ExtendedWindow from '@components/tilingsystem/extendedWindow';
+import { St, Meta, Clutter } from '../../gi/ext';
+import ExtendedWindow from '../../components/tilingsystem/extendedWindow';
 import MultipleWindowsIcon from './MultipleWindowsIcon';
-import { buildMargin, getWindows } from '@utils/ui';
-import Settings from '@settings/settings';
+import { buildMargin, getWindows } from '../../utils/ui';
+import Settings from '../../settings/settings';
 
 const GAPS = 3;
 
-const debug = logger('OverriddenAltTab');
-
 export default class OverriddenAltTab {
+    private static _enabled: boolean = false;
     private static _instance: OverriddenAltTab | null = null;
     private static _old_show: {
         (): boolean;
-        (backward: boolean, binding: any, mask: any): boolean;
+        (_backward: boolean, _binding: any, _mask: any): boolean;
     } | null;
-    private static _enabled: boolean = false;
 
     // AltTab has these private fields
     private _switcherList: any;

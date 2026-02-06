@@ -1,4 +1,4 @@
-import { St, Clutter, Shell, Meta } from '@gi.ext';
+import { St, Clutter, Shell, Meta } from '../gi/ext';
 
 // Compatibility for GNOME 48+ where 'vertical' was deprecated in favor of 'orientation'
 export function widgetOrientation(vertical: boolean) {
@@ -31,16 +31,18 @@ export function buildBlurEffect(sigma: number): Shell.BlurEffect {
     return effect;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getEventCoords(event: any): number[] {
     return event.get_coords ? event.get_coords() : [event.x, event.y]; // GNOME 40-44
 }
 
 export function maximizeWindow(window: Meta.Window): void {
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    window.get_maximized ? window.maximize(Meta.MaximizeFlags.BOTH):window.maximize();
+    window.get_maximized
+        ? window.maximize(Meta.MaximizeFlags.BOTH)
+        : window.maximize();
 }
 
 export function unmaximizeWindow(window: Meta.Window): void {
-    window.get_maximized ? window.unmaximize(Meta.MaximizeFlags.BOTH):window.unmaximize();
+    window.get_maximized
+        ? window.unmaximize(Meta.MaximizeFlags.BOTH)
+        : window.unmaximize();
 }

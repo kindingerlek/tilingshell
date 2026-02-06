@@ -1,21 +1,21 @@
 import TilePreview from '../tilepreview/tilePreview';
-import { GObject, St, Clutter, Mtk } from '@gi.ext';
+import { St, Clutter, Mtk } from '../../gi/ext';
 import Tile from '../layout/Tile';
 import Slider from './slider';
 import TileUtils from '../layout/TileUtils';
-import { registerGObjectClass } from '@utils/gjs';
-import { buildTileGaps } from '@utils/ui';
+import { registerGObjectClass } from '../../utils/gjs';
+import { buildTileGaps } from '../../utils/ui';
 
-@registerGObjectClass
 export default class EditableTilePreview extends TilePreview {
-    static metaInfo: GObject.MetaInfo<unknown, unknown, unknown> = {
+    static { registerGObjectClass(this, {
         Signals: {
             'size-changed': {
                 param_types: [Mtk.Rectangle.$gtype, Mtk.Rectangle.$gtype], // oldSize, newSize
             },
         },
         GTypeName: 'EditableTilePreview',
-    };
+    })};
+
     public static MIN_TILE_SIZE: number = 140;
 
     private readonly _btn: St.Button;
@@ -144,24 +144,10 @@ export default class EditableTilePreview extends TilePreview {
         this.emit('size-changed', oldSize, newSize);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    public connect(id: string, callback: (...args: any[]) => any): number;
-    public connect(
-        signal: 'size-changed',
-        callback: (
-            _source: this,
-            oldSize: Mtk.Rectangle,
-            newSize: Mtk.Rectangle,
-        ) => void,
-    ): number;
-    public connect(
-        signal: 'notify::hover',
-        callback: (_source: this) => void,
-    ): number;
-    public connect(
-        signal: 'clicked',
-        callback: (_source: this, clicked_button: number) => void,
-    ): number;
+    public connect(_id: string, _callback: (..._args: any[]) => any): number;
+    public connect(_signal: 'size-changed', _callback: (_source: this, _oldSize: Mtk.Rectangle, _newSize: Mtk.Rectangle) => void): number;
+    public connect(_signal: 'notify::hover', _callback: (_source: this) => void): number;
+    public connect(_signal: 'clicked', _callback: (_source: this, _clicked_button: number) => void): number;
     public connect(signal: string, callback: never): number {
         if (
             signal === 'clicked' ||

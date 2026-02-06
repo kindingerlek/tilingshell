@@ -1,19 +1,23 @@
-import Settings from '@settings/settings';
-import { registerGObjectClass } from '@/utils/gjs';
-import { St, Clutter, Gio } from '@gi.ext';
+import Settings from '../../settings/settings';
+import { registerGObjectClass } from '../../utils/gjs';
+import { St, Clutter, Gio } from '../../gi/ext';
 import LayoutButton from '../../indicator/layoutButton';
-import GlobalState from '@utils/globalState';
-import Layout from '@/components/layout/Layout';
+import GlobalState from '../../utils/globalState';
+import Layout from '../../components/layout/Layout';
 
-import Tile from '@/components/layout/Tile';
+import Tile from '../../components/layout/Tile';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { enableScalingFactorSupport, getMonitorScalingFactor } from '@utils/ui';
+import {
+    enableScalingFactorSupport,
+    getMonitorScalingFactor,
+} from '../../utils/ui';
 import { _ } from '../../translations';
-import { widgetOrientation } from '@utils/gnomesupport';
+import { widgetOrientation } from '../../utils/gnomesupport';
 
-@registerGObjectClass
 export default class EditorDialog extends ModalDialog.ModalDialog {
+    static { registerGObjectClass(this) }
+
     private readonly _layoutHeight: number = 72;
     private readonly _layoutWidth: number = 128; // 16:9 ratio. -> (16*layoutHeight) / 9 and then rounded to int
     private readonly _gapsSize: number = 3;
@@ -22,12 +26,13 @@ export default class EditorDialog extends ModalDialog.ModalDialog {
 
     constructor(params: {
         enableScaling: boolean;
-        onDeleteLayout: (ind: number, lay: Layout) => void;
-        onSelectLayout: (ind: number, lay: Layout) => void;
+        onDeleteLayout: (_ind: number, _lay: Layout) => void;
+        onSelectLayout: (_ind: number, _lay: Layout) => void;
         onNewLayout: () => void;
         legend: boolean;
         onClose: () => void;
         path: string;
+        onReorderLayout: (_fromIndex: number, _toIndex: number) => void;
     }) {
         super({
             destroyOnClose: true,
@@ -225,30 +230,61 @@ export default class EditorDialog extends ModalDialog.ModalDialog {
 
     private _drawLayouts(params: {
         layouts: Layout[];
-        onDeleteLayout: (ind: number, lay: Layout) => void;
-        onSelectLayout: (ind: number, lay: Layout) => void;
+        onDeleteLayout: (_ind: number, _lay: Layout) => void;
+        onSelectLayout: (_ind: number, _lay: Layout) => void;
         onNewLayout: () => void;
         onClose: () => void;
+        onReorderLayout: (_fromIndex: number, _toIndex: number) => void;
         path: string;
     }) {
         const gaps = Settings.get_inner_gaps(1).top > 0 ? this._gapsSize : 0;
         this._layoutsBoxLayout.destroy_all_children();
 
         params.layouts.forEach((lay, btnInd) => {
-            const box = new St.BoxLayout({
+            const layoutBox = new St.BoxLayout({
                 xAlign: Clutter.ActorAlign.CENTER,
                 styleClass: 'layout-button-container',
                 ...widgetOrientation(true),
             });
-            this._layoutsBoxLayout.add_child(box);
+            this._layoutsBoxLayout.add_child(layoutBox);
             const btn = new LayoutButton(
-                box,
+                layoutBox,
                 lay,
                 gaps,
                 this._layoutHeight,
                 this._layoutWidth,
             );
+            const moveAndDeleteButtonsBox = new St.BoxLayout({
+                xAlign: Clutter.ActorAlign.CENTER,
+                //styleClass: 'layout-button-container',
+                ...widgetOrientation(false),
+            });
+            layoutBox.add_child(moveAndDeleteButtonsBox);
             if (params.layouts.length > 1) {
+                // move left button if not first layout
+                if (btnInd >= 1) {
+                    const moveLeftBtn = new St.Button({
+                        xExpand: false,
+                        xAlign: Clutter.ActorAlign.CENTER,
+                        styleClass:
+                            'message-list-clear-button icon-button button delete-layout-button',
+                    });
+                    moveLeftBtn.child = new St.Icon({
+                        gicon: Gio.icon_new_for_string(
+                            `${params.path}/icons/chevron-left-symbolic.svg`,
+                        ),
+                        iconSize: 16,
+                    });
+                    moveLeftBtn.connect('clicked', () => {
+                        params.onReorderLayout(btnInd, btnInd-1);
+                        this._drawLayouts({
+                            ...params,
+                            layouts: GlobalState.get().layouts,
+                        });
+                    });
+                    moveAndDeleteButtonsBox.add_child(moveLeftBtn);
+                }
+                // delete button
                 const deleteBtn = new St.Button({
                     xExpand: false,
                     xAlign: Clutter.ActorAlign.CENTER,
@@ -268,7 +304,30 @@ export default class EditorDialog extends ModalDialog.ModalDialog {
                         layouts: GlobalState.get().layouts,
                     });
                 });
-                box.add_child(deleteBtn);
+                moveAndDeleteButtonsBox.add_child(deleteBtn);
+                // move right button if not last layout
+                if (btnInd + 1 < params.layouts.length) {
+                    const moveRightBtn = new St.Button({
+                        xExpand: false,
+                        xAlign: Clutter.ActorAlign.CENTER,
+                        styleClass:
+                            'message-list-clear-button icon-button button delete-layout-button',
+                    });
+                    moveRightBtn.child = new St.Icon({
+                        gicon: Gio.icon_new_for_string(
+                            `${params.path}/icons/chevron-right-symbolic.svg`,
+                        ),
+                        iconSize: 16,
+                    });
+                    moveRightBtn.connect('clicked', () => {
+                        params.onReorderLayout(btnInd, btnInd+1);
+                        this._drawLayouts({
+                            ...params,
+                            layouts: GlobalState.get().layouts,
+                        });
+                    });
+                    moveAndDeleteButtonsBox.add_child(moveRightBtn);
+                }
             }
             btn.connect('clicked', () => {
                 params.onSelectLayout(btnInd, lay);

@@ -1,4 +1,3 @@
-// eslint-disable-next-line spaced-comment
 /*!
  * Tiling Shell: advanced and modern window management for GNOME
  *
@@ -20,39 +19,41 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { Gtk, Adw, Gio, GLib, Gdk, GObject } from '@gi.prefs';
-import Settings, { ActivationKey } from './settings/settings';
+import { Gtk, Adw, Gio, GLib, Gdk, GObject } from './gi/prefs';
+import Settings from './settings/settings';
+import { EdgeTilingMode, ActivationKey } from './settings/settings';
 import { logger } from './utils/logger';
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
-import Layout from '@components/layout/Layout';
-import SettingsExport from '@settings/settingsExport';
+import Layout from './components/layout/Layout';
+import SettingsExport from './settings/settingsExport';
 import { gettext as _ } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 // @ts-expect-error "Module exists"
 import * as Config from 'resource:///org/gnome/Shell/Extensions/js/misc/config.js';
+import { CustomApplicationRulePrefs } from '@components/customApplicationRulePrefs';
 
 const debug = logger('prefs');
-
-/**
- * This function is called when the preferences window is first created to build
- * and return a GTK4 widget. Prior to version 42, the prefs.js needed a
- * buildPrefsWidget function, returning a GtkWidget to be inserted in the
- * preferences dialog.
- *
- * The preferences window will be a `Adw.PreferencesWindow`, and the widget
- * returned by this function will be added to an `Adw.PreferencesPage` or
- * `Adw.PreferencesGroup` if necessary.
- *
- * @returns {Gtk.Widget} the preferences widget
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function buildPrefsWidget(): Gtk.Widget {
-    return new Gtk.Label({
-        label: 'Preferences',
-    });
-}
+const RESOURCES_PREFIX = "/org/gnome/Shell/Extensions/tilingshell"; // must match the prefix in resources.gresources.xml
 
 export default class TilingShellExtensionPreferences extends ExtensionPreferences {
     private GNOME_VERSION_MAJOR = Number(Config.PACKAGE_VERSION.split('.')[0]);
+
+    loadCssAndResources() {
+        const resource = Gio.Resource.load(`${this.path}/resources.gresource`);
+        Gio.resources_register(resource);
+
+        const provider = new Gtk.CssProvider();
+        provider.load_from_path(`${this.path}/prefs.css`);
+
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(),
+            provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        );
+
+        Gtk.IconTheme
+            .get_for_display(Gdk.Display.get_default())
+            .add_resource_path(`${RESOURCES_PREFIX}/icons`);
+    }
 
     /**
      * This function is called when the preferences window is first created to fill
@@ -62,6 +63,7 @@ export default class TilingShellExtensionPreferences extends ExtensionPreference
      */
     fillPreferencesWindow(window: Adw.PreferencesWindow): Promise<void> {
         Settings.initialize(this.getSettings());
+        this.loadCssAndResources();
 
         const prefsPage = new Adw.PreferencesPage({
             name: 'general',
@@ -83,7 +85,6 @@ export default class TilingShellExtensionPreferences extends ExtensionPreference
             _('Whether to show the panel indicator'),
         );
         appearenceGroup.add(showIndicatorRow);
-
         const innerGapsRow = this._buildSpinButtonRow(
             Settings.KEY_INNER_GAPS,
             _('Inner gaps'),
@@ -148,7 +149,7 @@ export default class TilingShellExtensionPreferences extends ExtensionPreference
             this._buildSwitchRow(
                 Settings.KEY_ENABLE_SMART_WINDOW_BORDER_RADIUS,
                 _('Smart border radius'),
-                _('Dynamically adapt to the window’s actual border radius'),
+                _("Dynamically adapt to the window's actual border radius"),
             ),
         );
         windowBorderExpanderRow.add_row(
@@ -218,6 +219,20 @@ export default class TilingShellExtensionPreferences extends ExtensionPreference
             _('Move the window on top of the screen to snap assist it'),
         );
         behaviourGroup.add(snapAssistRow);
+
+        const snapAssistSyncLayoutRow = this._buildSwitchRow(
+            Settings.KEY_SNAP_ASSIST_SYNC_LAYOUT,
+            _('Sync layout when tiling with Snap Assistant'),
+            _(
+                'Change the desktop layout to match the layout used when tiling a window with Snap Assistant',
+            ),
+        );
+        Settings.bind(
+            Settings.KEY_SNAP_ASSIST,
+            snapAssistSyncLayoutRow,
+            'sensitive',
+        );
+        behaviourGroup.add(snapAssistSyncLayoutRow);
 
         const enableTilingSystemRow = this._buildSwitchRow(
             Settings.KEY_TILING_SYSTEM,
@@ -297,6 +312,15 @@ export default class TilingShellExtensionPreferences extends ExtensionPreference
         );
         behaviourGroup.add(overrideAltTabRow);
 
+        const raiseTogetherRow = this._buildSwitchRow(
+            Settings.KEY_RAISE_TOGETHER,
+            _('Raise tiled windows together'),
+            _(
+                'When one tiled window is raised, raise all tiled windows into the foreground together',
+            ),
+        );
+        behaviourGroup.add(raiseTogetherRow);
+
         // Screen Edges section
         const activeScreenEdgesGroup = new Adw.PreferencesGroup({
             title: _('Screen Edges'),
@@ -362,6 +386,13 @@ export default class TilingShellExtensionPreferences extends ExtensionPreference
         );
         activeScreenEdgesGroup.add(edgeTilingOffset);
 
+        // Create dropdown for edge tiling mode
+        const edgeTilingBehaviourRow = this._buildEdgeTilingBehaviourRow(
+            Settings.EDGE_TILING_MODE,
+            (newMode: EdgeTilingMode) => Settings.EDGE_TILING_MODE = newMode,
+        );
+        activeScreenEdgesGroup.add(edgeTilingBehaviourRow);
+
         prefsPage.add(activeScreenEdgesGroup);
 
         // Windows suggestions section
@@ -391,14 +422,19 @@ export default class TilingShellExtensionPreferences extends ExtensionPreference
 
         const screenEdgesWindowSuggestionRow = this._buildSwitchRow(
             Settings.KEY_ENABLE_SCREEN_EDGES_WINDOWS_SUGGESTIONS,
-            _('Enable window suggestions for screen edge snapping'),
+            _('Enable window suggestions for screen edge tiling'),
             _(
-                'Suggests windows to occupy empty tiles when snapping to screen edges',
+                'Suggests windows to occupy empty tiles when tiling to screen edges',
             ),
         );
         windowsSuggestionsGroup.add(screenEdgesWindowSuggestionRow);
 
         prefsPage.add(windowsSuggestionsGroup);
+
+        // Custom Rules section
+        const customRulesPrefs = new CustomApplicationRulePrefs();
+        const customRulesGroup = customRulesPrefs.buildCustomRulesGroup(window);
+        prefsPage.add(customRulesGroup);
 
         // Layouts section
         const layoutsGroup = new Adw.PreferencesGroup({
@@ -1004,6 +1040,107 @@ export default class TilingShellExtensionPreferences extends ExtensionPreference
         return Promise.resolve();
     }
 
+    _createEdgeTilingBehaviourOption(title: string, subtitle: string, iconName: string) {
+        const button = new Gtk.ToggleButton({
+            canFocus: true,
+            valign: Gtk.Align.FILL,
+            cssClasses: ['option'],
+            hexpand: true,
+            vexpand: false,
+        });
+
+        const distance = 12;
+
+        const content = new Gtk.Box({
+            orientation: Gtk.Orientation.VERTICAL,
+            margin_top: 0,
+            margin_bottom: distance,
+            margin_start: 0,
+            margin_end: 0,
+        });
+
+        const image = new Gtk.Image({
+            iconName: iconName,
+            pixel_size: 96,
+            margin_top: distance,
+            margin_bottom: distance,
+            margin_start: 0,
+            margin_end: 0,
+        });
+
+        const titleLabel = new Gtk.Label({
+            label: title,
+            wrap: true,
+            xalign: 0,
+            css_classes: ['title']
+        });
+
+        const subtitleLabel = new Gtk.Label({
+            label: subtitle,
+            wrap: true,
+            xalign: 0,
+            css_classes: ['caption']
+        });
+
+        content.append(image);
+        content.append(titleLabel);
+        content.append(subtitleLabel);
+
+        button.set_child(content);
+
+        return button;
+    }
+
+    _buildEdgeTilingBehaviourRow(currentMode: EdgeTilingMode, onModeChange: (newMode: EdgeTilingMode) => void) {
+        const row = new Adw.ActionRow({
+            activatable: false,
+            title: _("Choose how windows snap to screen edges"),
+            cssClasses: ['edge-tiling-behaviour']
+        });
+        (row.get_child() as Gtk.Box).set_orientation(Gtk.Orientation.VERTICAL);
+
+        const content = new Gtk.Box({
+            orientation: Gtk.Orientation.HORIZONTAL,
+            halign: Gtk.Align.FILL,
+            valign: Gtk.Align.FILL,
+            homogeneous: true, // all children same size
+            spacing: 2,
+            cssClasses: ['content'],
+            margin_bottom: 6,
+        });
+        const defaultBtn = this._createEdgeTilingBehaviourOption(
+            _('Default'),
+            _('Follow quarters or screen halves'),
+            'edge-default-symbolic'
+        );
+        defaultBtn.connect("toggled", () => onModeChange(EdgeTilingMode.DEFAULT));
+        const adaptiveBtn = this._createEdgeTilingBehaviourOption(
+            _('Adaptive'),
+            _('Follow corners of selected layout or screen halves'),
+            'edge-adaptive-symbolic'
+        );
+        adaptiveBtn.connect("toggled", () => onModeChange(EdgeTilingMode.ADAPTIVE));
+        const granularBtn = this._createEdgeTilingBehaviourOption(
+            _('Granular'),
+            _('Follow currently selected layout'),
+            'edge-granular-symbolic'
+        );
+        granularBtn.connect("toggled", () => onModeChange(EdgeTilingMode.GRANULAR));
+        content.append(defaultBtn);
+        content.append(adaptiveBtn);
+        content.append(granularBtn);
+        // make them mutually exclusive
+        defaultBtn.set_group(adaptiveBtn);
+        granularBtn.set_group(adaptiveBtn);
+        // set the currently activated one
+        if (currentMode === EdgeTilingMode.ADAPTIVE) adaptiveBtn.set_active(true);
+        else if (currentMode === EdgeTilingMode.GRANULAR) granularBtn.set_active(true);
+        else defaultBtn.set_active(true);
+        (row.get_child() as Gtk.Box).append(content);
+
+        return row;
+    }
+
     _buildSwitchRow(
         settingsKey: string,
         title: string,
@@ -1179,7 +1316,7 @@ export default class TilingShellExtensionPreferences extends ExtensionPreference
     _buildScaleRow(
         title: string,
         subtitle: string,
-        onChange: (scale: Gtk.Scale) => void,
+        onChange: (_scale: Gtk.Scale) => void,
         initialValue: number,
         min: number,
         max: number,
@@ -1216,7 +1353,7 @@ export default class TilingShellExtensionPreferences extends ExtensionPreference
 
     _buildColorButton(
         rgba: Gdk.RGBA,
-        onChange: (s: string) => void,
+        onChange: (_s: string) => void,
     ): Gtk.ColorButton {
         const colorButton = new Gtk.ColorButton({
             rgba,
@@ -1261,7 +1398,7 @@ export default class TilingShellExtensionPreferences extends ExtensionPreference
         filter: Gtk.FileFilter,
         onResponse: (
             _source: Gtk.FileChooserNative,
-            response_id: number,
+            _response_id: number,
         ) => void,
     ): Gtk.FileChooserNative {
         const fc = new Gtk.FileChooserNative({

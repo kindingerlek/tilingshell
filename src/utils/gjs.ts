@@ -1,30 +1,17 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { GObject } from '@gi.ext';
+import { GObject } from '../gi/ext';
 
-// Taken from https://github.com/material-shell/material-shell/blob/main/src/utils/gjs.ts
-// Decorator function to call `GObject.registerClass` with the given class.
-// Use like
-// ```
-// @registerGObjectClass
-// export class MyThing extends GObject.Object { ... }
-// ```
+// Modified from https://github.com/material-shell/material-shell/blob/main/src/utils/gjs.ts
+// Utility function to call `GObject.registerClass` with the given class.
 export function registerGObjectClass<
     K,
-    // eslint-disable-next-line space-before-function-paren
-    T extends { metaInfo?: any; new (...params: any[]): K },
->(target: T) {
-    // Note that we use 'hasOwnProperty' because otherwise we would get inherited meta infos.
-    // This would be bad because we would inherit the GObjectName too, which is supposed to be unique.
-    if (Object.prototype.hasOwnProperty.call(target, 'metaInfo')) {
-        // @ts-ignore
-        return GObject.registerClass<K, T>(
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            target.metaInfo!,
-            target,
-        ) as typeof target;
-    } else {
-        // @ts-ignore
-        return GObject.registerClass<K, T>(target) as typeof target;
+    T extends { new (..._params: any[]): K },
+>(target: T, metaInfo: GObject.MetaInfo<unknown, unknown, unknown> = {}) {
+    // Always ensure a unique GTypeName
+    if (!metaInfo.GTypeName) {
+        // Prefix with something project-specific to avoid cross-extension conflicts
+        metaInfo.GTypeName = `TilingShell${target.name}`;
     }
+
+    // @ts-expect-error This is expected
+    return GObject.registerClass<K, T>(metaInfo, target) as typeof target;
 }

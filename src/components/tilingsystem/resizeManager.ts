@@ -1,14 +1,17 @@
-import { St, Mtk, Meta } from '@gi.ext';
-import SignalHandling from '@utils/signalHandling';
-import Settings from '@settings/settings';
+import { St, Mtk, Meta } from '../../gi/ext';
+import SignalHandling from '../../utils/signalHandling';
+import Settings from '../../settings/settings';
 import ExtendedWindow from './extendedWindow';
-import { getWindows } from '@utils/ui';
+import { getWindows } from '../../utils/ui';
+import { CustomRulesManager } from '@components/customRulesManager';
 
 export class ResizingManager {
     private _signals: SignalHandling | null;
+    private readonly _customRulesManager: CustomRulesManager;
 
-    constructor() {
+    constructor(customRulesManager: CustomRulesManager) {
         this._signals = null;
+        this._customRulesManager = customRulesManager;
     }
 
     public enable() {
@@ -27,6 +30,12 @@ export class ResizingManager {
                     grabOp === Meta.GrabOp.KEYBOARD_MOVING ||
                     grabOp === Meta.GrabOp.MOVING;
                 if (moving || !Settings.RESIZE_COMPLEMENTING_WINDOWS) return;
+                if (
+                    !this._customRulesManager.isResizeComplementingEnabled(
+                        window,
+                    )
+                )
+                    return;
 
                 this._onWindowResizingBegin(window, grabOp & ~1024);
             },
@@ -182,9 +191,10 @@ export class ResizingManager {
                 return St.Side.TOP;
             case St.Side.LEFT:
                 return St.Side.RIGHT;
-            case St.Side.RIGHT:
-                return St.Side.LEFT;
         }
+
+        // case St.Side.RIGHT
+        return St.Side.LEFT;
     }
 
     private _findAdjacent(
@@ -231,7 +241,7 @@ export class ResizingManager {
         const newRemainingWindows: Set<Meta.Window> = new Set();
         remainingWindows.forEach((otherWin) => {
             const otherWinRect = otherWin.get_frame_rect();
-            // eslint-disable-next-line prefer-const
+
             let [hasIntersection, intersection] = otherWin
                 .get_frame_rect()
                 .intersect(borderRect);
@@ -367,8 +377,9 @@ export class ResizingManager {
 const WINDOW_CLONE_RESIZE_ANIMATION_TIME = 150;
 const APP_ICON_SIZE = 96;
 
-@registerGObjectClass
 class WindowClone extends St.Widget {
+    static { registerGObjectClass(this) }
+
     private _clone: Clutter.Actor;
     //private _blurWidget: St.Widget;
 

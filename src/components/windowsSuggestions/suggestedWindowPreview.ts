@@ -1,6 +1,5 @@
-import { registerGObjectClass } from '@utils/gjs';
+import { registerGObjectClass } from '../../utils/gjs';
 import {
-    GObject,
     Clutter,
     Shell,
     Meta,
@@ -9,8 +8,7 @@ import {
     Atk,
     Pango,
     GLib,
-} from '@gi.ext';
-import { logger } from '@utils/logger';
+} from '../../gi/ext';
 
 const WINDOW_OVERLAY_FADE_TIME = 200;
 
@@ -20,16 +18,13 @@ const WINDOW_ACTIVE_SIZE_INC = 5; // in each direction
 const ICON_SIZE = 36;
 const ICON_OVERLAP = 0.7;
 
-const debug = logger('SuggestedWindowPreview');
-
 /*
 This class is heavily based on Gnome Shell's WindowPreview class
 */
-@registerGObjectClass
 export default class SuggestedWindowPreview extends Shell.WindowPreview {
-    static metaInfo: GObject.MetaInfo<unknown, unknown, unknown> = {
+    static { registerGObjectClass(this, {
         GTypeName: 'PopupWindowPreview',
-    };
+    })};
 
     private _overlayShown: boolean;
     private _icon: St.Widget;
@@ -242,8 +237,7 @@ export default class SuggestedWindowPreview extends Shell.WindowPreview {
     }
 
     _addWindow(metaWindow: Meta.Window) {
-        this.clone =
-            this.windowContainer.layout_manager.add_window(metaWindow);
+        this.clone = this.windowContainer.layout_manager.add_window(metaWindow);
         // if (!clone) return;
 
         /* // We expect this to be used for all interaction rather than
@@ -273,7 +267,7 @@ export default class SuggestedWindowPreview extends Shell.WindowPreview {
     }
 
     _updateAttachedDialogs() {
-        const iter = (win) => {
+        const iter = (win: Meta.Window) => {
             const actor = win.get_compositor_private();
 
             if (!actor) return false;
@@ -298,8 +292,8 @@ export default class SuggestedWindowPreview extends Shell.WindowPreview {
 
         const parent = this.get_parent();
         const actualAbove = this._getActualStackAbove();
-        if (actualAbove === null) parent.set_child_below_sibling(this, null);
-        else parent.set_child_above_sibling(this, actualAbove);
+        if (actualAbove === null) parent?.set_child_below_sibling(this, null);
+        else parent?.set_child_above_sibling(this, actualAbove);
     }
 
     _onDestroy() {
@@ -311,12 +305,12 @@ export default class SuggestedWindowPreview extends Shell.WindowPreview {
         }
     }
 
-    vfunc_enter_event(event) {
+    vfunc_enter_event(event: Clutter.Event) {
         this.showOverlay(true);
         return super.vfunc_enter_event(event);
     }
 
-    vfunc_leave_event(event) {
+    vfunc_leave_event(event: Clutter.Event) {
         if (this._destroyed) return super.vfunc_leave_event(event);
 
         /* if ((event.get_flags() & Clutter.EventFlags.FLAG_GRAB_NOTIFY) !== 0 &&

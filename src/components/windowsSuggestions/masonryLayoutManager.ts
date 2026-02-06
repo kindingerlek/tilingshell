@@ -1,10 +1,11 @@
-import { registerGObjectClass } from '@utils/gjs';
-import { Clutter } from '@gi.ext';
+import { registerGObjectClass } from '../../utils/gjs';
+import { Clutter } from '../../gi/ext';
 
 const MASONRY_ROW_MIN_HEIGHT_PERCENTAGE = 0.15;
 
-@registerGObjectClass
 export default class MasonryLayoutManager extends Clutter.LayoutManager {
+    static { registerGObjectClass(this) }
+    
     private _rowCount: number;
     private _spacing: number;
     private _maxRowHeight: number;
@@ -40,8 +41,8 @@ export default class MasonryLayoutManager extends Clutter.LayoutManager {
         const placements = [];
 
         for (const child of children) {
-            const [minWidth, natWidth] = child.get_preferred_width(-1);
-            const [minHeight, natHeight] = child.get_preferred_height(-1);
+            const [_minWidth, natWidth] = child.get_preferred_width(-1);
+            const [_minHeight, natHeight] = child.get_preferred_height(-1);
             // Maintain the aspect ratio
             const aspectRatio = natWidth / natHeight;
             const width = rowHeight * aspectRatio;
@@ -176,8 +177,8 @@ export default class MasonryLayoutManager extends Clutter.LayoutManager {
 
         for (const child of children) {
             // Retrieve the preferred height and width to calculate the aspect ratio
-            const [minHeight, naturalHeight] = child.get_preferred_height(-1);
-            const [minWidth, naturalWidth] =
+            const [_minHeight, naturalHeight] = child.get_preferred_height(-1);
+            const [_minWidth, naturalWidth] =
                 child.get_preferred_width(naturalHeight);
 
             // Maintain the aspect ratio
@@ -306,7 +307,7 @@ export default class MasonryLayoutManager extends Clutter.LayoutManager {
 
     vfunc_get_preferred_width(
         container: Clutter.Actor,
-        forHeight: number,
+        _forHeight: number,
     ): [number, number] {
         let maxX = 0;
         container.get_children().forEach((ch) => {
@@ -318,7 +319,7 @@ export default class MasonryLayoutManager extends Clutter.LayoutManager {
 
     vfunc_get_preferred_height(
         container: Clutter.Actor,
-        forWidth: number,
+        _forWidth: number,
     ): [number, number] {
         let maxY = 0;
         container.get_children().forEach((ch) => {

@@ -1,9 +1,6 @@
-import { registerGObjectClass } from '@utils/gjs';
-import { logger } from '@utils/logger';
-import SignalHandling from '@utils/signalHandling';
-import { GObject, Meta, Mtk, Clutter, Graphene } from '@gi.ext';
-
-const debug = logger('TilingShellWindowManager');
+import { registerGObjectClass } from '../../utils/gjs';
+import SignalHandling from '../../utils/signalHandling';
+import { GObject, Meta, Mtk, Clutter, Graphene } from '../../gi/ext';
 
 class CachedWindowProperties {
     private _is_initialized: boolean = false;
@@ -32,9 +29,8 @@ interface WindowWithCachedProps extends Meta.Window {
     __ts_cached: CachedWindowProperties | undefined;
 }
 
-@registerGObjectClass
 export default class TilingShellWindowManager extends GObject.Object {
-    static metaInfo: GObject.MetaInfo<unknown, unknown, unknown> = {
+    static { registerGObjectClass(this, {
         GTypeName: 'TilingShellWindowManager',
         Signals: {
             unmaximized: {
@@ -44,7 +40,7 @@ export default class TilingShellWindowManager extends GObject.Object {
                 param_types: [Meta.Window.$gtype],
             },
         },
-    };
+    })};
 
     private static _instance: TilingShellWindowManager | null;
 

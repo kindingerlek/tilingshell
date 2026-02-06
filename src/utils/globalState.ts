@@ -1,18 +1,17 @@
-import { registerGObjectClass } from '@utils/gjs';
+import { registerGObjectClass } from '../utils/gjs';
 import Layout from '../components/layout/Layout';
 import Settings from '../settings/settings';
 import SignalHandling from './signalHandling';
-import { GObject, Meta, Gio } from '@gi.ext';
+import { GObject, Meta, Gio } from '../gi/ext';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import { logger } from './logger';
 import { getWindows } from './ui';
-import ExtendedWindow from '@components/tilingsystem/extendedWindow';
+import ExtendedWindow from '../components/tilingsystem/extendedWindow';
 
 const debug = logger('GlobalState');
 
-@registerGObjectClass
 export default class GlobalState extends GObject.Object {
-    static metaInfo: GObject.MetaInfo<unknown, unknown, unknown> = {
+    static { registerGObjectClass(this, {
         GTypeName: 'GlobalState',
         Signals: {
             'layouts-changed': {
@@ -30,7 +29,7 @@ export default class GlobalState extends GObject.Object {
                 100,
             ),
         },
-    };
+    })};
 
     public static SIGNAL_LAYOUTS_CHANGED = 'layouts-changed';
 
@@ -165,7 +164,7 @@ export default class GlobalState extends GObject.Object {
         this._signals.connect(
             global.workspaceManager,
             'workspace-removed',
-            (_) => {
+            () => {
                 const newMap: Map<Meta.Workspace, string[]> = new Map();
                 const n_workspaces = global.workspaceManager.get_n_workspaces();
                 const to_be_saved: string[][] = [];
@@ -191,7 +190,7 @@ export default class GlobalState extends GObject.Object {
         this._signals.connect(
             global.workspaceManager,
             'workspaces-reordered',
-            (_) => {
+            () => {
                 this._save_selected_layouts();
                 debug('reordered workspaces');
             },
@@ -280,6 +279,14 @@ export default class GlobalState extends GObject.Object {
         if (layFoundIndex === -1) return;
 
         this._layouts[layFoundIndex] = newLay;
+        // easy way to trigger save and signal emission
+        this.layouts = this._layouts;
+    }
+
+    public swapLayouts(first: number, second: number) {
+        const tmp = this._layouts[first];
+        this._layouts[first] = this._layouts[second];
+        this._layouts[second] = tmp;
         // easy way to trigger save and signal emission
         this.layouts = this._layouts;
     }

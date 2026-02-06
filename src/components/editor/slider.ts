@@ -1,26 +1,24 @@
-import { registerGObjectClass } from '@/utils/gjs';
-import { GObject, St, Clutter, Mtk, Meta } from '@gi.ext';
+import { registerGObjectClass } from '../../utils/gjs';
+import { GObject, St, Clutter, Mtk, Meta } from '../../gi/ext';
 import EditableTilePreview from './editableTilePreview';
-import { getScalingFactorOf } from '@utils/ui';
-import { getEventCoords } from '@utils/gnomesupport';
+import { getScalingFactorOf } from '../../utils/ui';
+import { getEventCoords } from '../../utils/gnomesupport';
 
-@registerGObjectClass
 export default class Slider extends St.Button {
-    static metaInfo: GObject.MetaInfo<unknown, unknown, unknown> = {
+    static { registerGObjectClass(this, {
         Signals: {
             slide: {
                 param_types: [GObject.TYPE_INT], // movement
             },
         },
         GTypeName: 'Slider',
-    };
+    })};
 
     private readonly _sliderSize: number = 48;
     private readonly _groupId: number;
     private readonly _signals: Map<EditableTilePreview, number[]>;
 
     private _dragging: boolean;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private _grab: any;
     private _horizontalDir: boolean;
     private _lastEventCoord: { x: number; y: number } | null;

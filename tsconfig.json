@@ -9,14 +9,12 @@
     "lib": [
       "ES2022"
     ],
-    "paths": {
-      "@*": ["./src/*"]
-    },
     "experimentalDecorators": true,
+    "baseUrl": "./",
   },
   "include": [
     "ambient.d.ts",
     "src/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "*.d.ts" ]
 }

@@ -1,11 +1,8 @@
-import { registerGObjectClass } from '@/utils/gjs';
+import { registerGObjectClass } from '../../utils/gjs';
 import TilePreview from '../tilepreview/tilePreview';
 import Tile from '../layout/Tile';
-import { St, Clutter, Mtk } from '@gi.ext';
-import { getScalingFactorOf } from '@utils/ui';
-import { logger } from '@utils/logger';
-
-const debug = logger('SnapAssistTile');
+import { St, Clutter, Mtk } from '../../gi/ext';
+import { getScalingFactorOf } from '../../utils/ui';
 
 const MIN_RADIUS = 2;
 
@@ -23,8 +20,9 @@ const MIN_RADIUS = 2;
  * - Adjusts the theme between light and dark based on text color contrast.
  * - Listens for theme changes and updates styles dynamically.
  */
-@registerGObjectClass
 export default class SnapAssistTile extends TilePreview {
+    static { registerGObjectClass(this) }
+    
     private _styleChangedSignalID: number | undefined;
 
     constructor(params: {

@@ -1,4 +1,4 @@
-// eslint-disable-next-line spaced-comment
+
 /*!
  * Tiling Shell: advanced and modern window management for GNOME
  *
@@ -20,40 +20,38 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import './styles/stylesheet.scss';
-
-import { Gio, GLib, Meta } from '@gi.ext';
-import { logger } from '@utils/logger';
+import { Extension } from './polyfill'; // must stay at the top
+import { Gio, GLib, Meta } from './gi/ext';
+import { logger } from './utils/logger';
 import {
     filterUnfocusableWindows,
     getMonitors,
     getWindows,
     squaredEuclideanDistance,
-} from '@/utils/ui';
+} from './utils/ui';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { TilingManager } from '@/components/tilingsystem/tilingManager';
-import Settings from '@settings/settings';
+import { TilingManager } from './components/tilingsystem/tilingManager';
+import Settings from './settings/settings';
 import SignalHandling from './utils/signalHandling';
 import GlobalState from './utils/globalState';
 import Indicator from './indicator/indicator';
 import { ExtensionMetadata } from 'resource:///org/gnome/shell/extensions/extension.js';
 import DBus from './dbus';
-import KeyBindings, {
-    KeyBindingsDirection,
-    FocusSwitchDirection,
-} from './keybindings';
-import SettingsOverride from '@settings/settingsOverride';
-import { ResizingManager } from '@components/tilingsystem/resizeManager';
-import OverriddenWindowMenu from '@components/window_menu/overriddenWindowMenu';
-import Tile from '@components/layout/Tile';
-import { WindowBorderManager } from '@components/windowBorderManager';
-import TilingShellWindowManager from '@components/windowManager/tilingShellWindowManager';
-import ExtendedWindow from '@components/tilingsystem/extendedWindow';
-import { Extension } from '@polyfill';
-import OverriddenAltTab from '@components/altTab/overriddenAltTab';
-import { LayoutSwitcherPopup } from '@components/layoutSwitcher/layoutSwitcher';
-import { unmaximizeWindow } from '@utils/gnomesupport';
+import { KeyBindingsDirection, FocusSwitchDirection } from './keybindings';
+import KeyBindings from './keybindings';
+import SettingsOverride from './settings/settingsOverride';
+import { ResizingManager } from './components/tilingsystem/resizeManager';
+import OverriddenWindowMenu from './components/window_menu/overriddenWindowMenu';
+import Tile from './components/layout/Tile';
+import { WindowBorderManager } from './components/windowBorder/windowBorderManager';
+import TilingShellWindowManager from './components/windowManager/tilingShellWindowManager';
+import ExtendedWindow from './components/tilingsystem/extendedWindow';
+import OverriddenAltTab from './components/altTab/overriddenAltTab';
+import { LayoutSwitcherPopup } from './components/layoutSwitcher/layoutSwitcher';
+import { unmaximizeWindow } from './utils/gnomesupport';
 import * as Config from 'resource:///org/gnome/shell/misc/config.js';
+import { CustomRulesManager } from './components/customRulesManager';
+import { RaiseTogetherManager } from './components/raiseTogether/raiseTogetherManager';
 
 const debug = logger('extension');
 
@@ -66,6 +64,8 @@ export default class TilingShellExtension extends Extension {
     private _keybindings: KeyBindings | null;
     private _resizingManager: ResizingManager | null;
     private _windowBorderManager: WindowBorderManager | null;
+    private _customRulesManager: CustomRulesManager | null;
+    private _raiseTogetherManager: RaiseTogetherManager | null;
 
     constructor(metadata: ExtensionMetadata) {
         super(metadata);
@@ -77,6 +77,8 @@ export default class TilingShellExtension extends Extension {
         this._keybindings = null;
         this._resizingManager = null;
         this._windowBorderManager = null;
+        this._customRulesManager = null;
+        this._raiseTogetherManager = null;
     }
 
     createIndicator() {
@@ -139,6 +141,11 @@ export default class TilingShellExtension extends Extension {
             );
         }
 
+        // initialize CustomRulesManager before creating TilingManagers
+        if (this._customRulesManager) this._customRulesManager.destroy();
+        this._customRulesManager = new CustomRulesManager();
+        this._customRulesManager.enable();
+
         if (Main.layoutManager._startingUp) {
             this._signals.connect(
                 Main.layoutManager,
@@ -153,14 +160,18 @@ export default class TilingShellExtension extends Extension {
             this._setupSignals();
         }
 
-        this._resizingManager = new ResizingManager();
+        this._resizingManager = new ResizingManager(this._customRulesManager);
         this._resizingManager.enable();
 
         if (this._windowBorderManager) this._windowBorderManager.destroy();
         this._windowBorderManager = new WindowBorderManager(
             !this._fractionalScalingEnabled,
+            this._customRulesManager,
         );
         this._windowBorderManager.enable();
+
+        this._raiseTogetherManager = new RaiseTogetherManager();
+        this._raiseTogetherManager.enable();
 
         this.createIndicator();
 
@@ -183,7 +194,11 @@ export default class TilingShellExtension extends Extension {
         this._tilingManagers.forEach((tm) => tm.destroy());
         this._tilingManagers = getMonitors().map(
             (monitor) =>
-                new TilingManager(monitor, !this._fractionalScalingEnabled),
+                new TilingManager(
+                    monitor,
+                    !this._fractionalScalingEnabled,
+                    this._customRulesManager as CustomRulesManager,
+                ),
         );
         this._tilingManagers.forEach((tm) => tm.enable());
     }
@@ -229,6 +244,7 @@ export default class TilingShellExtension extends Extension {
                     this._windowBorderManager.destroy();
                 this._windowBorderManager = new WindowBorderManager(
                     this._fractionalScalingEnabled,
+                    this._customRulesManager as CustomRulesManager,
                 );
                 this._windowBorderManager.enable();
             },
@@ -770,6 +786,12 @@ export default class TilingShellExtension extends Extension {
 
         this._windowBorderManager?.destroy();
         this._windowBorderManager = null;
+
+        this._customRulesManager?.destroy();
+        this._customRulesManager = null;
+      
+        this._raiseTogetherManager?.destroy();
+        this._raiseTogetherManager = null;
 
         // disable dbus
         this._dbus?.disable();

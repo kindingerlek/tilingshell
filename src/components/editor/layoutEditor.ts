@@ -1,6 +1,6 @@
-import { registerGObjectClass } from '@/utils/gjs';
-import { GObject, St, Clutter, Mtk, Meta, Shell } from '@gi.ext';
-import Settings from '@settings/settings';
+import { registerGObjectClass } from '../../utils/gjs';
+import { GObject, St, Clutter, Mtk, Meta, Shell } from '../../gi/ext';
+import Settings from '../../settings/settings';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {
     buildMargin,
@@ -9,7 +9,7 @@ import {
     enableScalingFactorSupport,
     getMonitorScalingFactor,
     getWindowsOfMonitor,
-} from '@/utils/ui';
+} from '../../utils/ui';
 import Layout from '../layout/Layout';
 import TileUtils from '../layout/TileUtils';
 import Slider from './slider';
@@ -17,10 +17,11 @@ import EditableTilePreview from './editableTilePreview';
 import Tile from '../layout/Tile';
 import HoverLine from './hoverLine';
 import { Monitor } from 'resource:///org/gnome/shell/ui/layout.js';
-import { getEventCoords } from '@utils/gnomesupport';
+import { getEventCoords } from '../../utils/gnomesupport';
 
-@registerGObjectClass
 export default class LayoutEditor extends St.Widget {
+    static { registerGObjectClass(this) }
+    
     private _layout: Layout;
     private _containerRect: Mtk.Rectangle;
     private _innerGaps: Clutter.Margin;
